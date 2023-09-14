@@ -148,19 +148,27 @@
 			
 			# for the first supervisor, lets get the index of the value(s) that need to be overwritten -- I say values because two people might be first choice(!)
 			
+			# and a loop around this to do this for all supervisors
+			
+				# Construct the column name
+				
+			
 				# when they are the 1st choice
-				actweights[which(SPRF$stud_supervis_prefer_0_1_RANK > 0),1] <- 0
+				col_name_0 <- paste("stud_supervis_prefer_0_",i,"_RANK", sep = "")
+				actweights[which(SPRF[[col_name_0]] > 0),1] <- 0
 			
 				# when they are the 2nd choice
-				actweights[which(SPRF$stud_supervis_prefer_1_1_RANK > 0),1] <- 2 # please note that this is said to two on purpose, as not getting your first choice hurts more than getting your 3rd instead of 2nd choice
+				col_name_1 <- paste("stud_supervis_prefer_1_",i,"_RANK", sep = "")
+				actweights[which(SPRF[[col_name_1]] > 0),1] <- 2
 				
 				# when they are the 3th choice
-				actweights[which(SPRF$stud_supervis_prefer_2_1_RANK > 0),1] <- 3
+				col_name_2 <- paste("stud_supervis_prefer_2_",i,"_RANK", sep = "")
+				actweights[which(SPRF[[col_name_2]] > 0),1] <- 3
 				
 				# when they are the 4th choice
-				actweights[which(SPRF$stud_supervis_prefer_3_1_RANK > 0),1] <- 4
-			
-				actweights # lets do a manual check # yes this looks good.
+				col_name_3 <- paste("stud_supervis_prefer_3_",i,"_RANK", sep = "")
+				actweights[which(SPRF[[col_name_3]] > 0),1] <- 4
+	
 			
 		# Create the model
 		model <- MIPModel() %>%
