@@ -160,7 +160,7 @@
 				# when they are the 4th choice
 				actweights[which(SPRF$stud_supervis_prefer_3_1_RANK > 0),1] <- 4
 			
-				actweights # lets do a manual check
+				actweights # lets do a manual check # yes this looks good.
 			
 		# Create the model
 		model <- MIPModel() %>%
