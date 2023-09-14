@@ -38,11 +38,13 @@
 	
 	n_slots_per_supervisor <- 3
 	n_slots_per_supervisor
+
+# CHECK: any students that signed up double?
+	names(SPRF)
+	table(duplicated(SPRF$email))
+	table(duplicated(SPRF$SNR))
 	
 # OK, lets get some descriptives first
-
-
-
 
 	# per supervisor, distribution of the rankings
 		# from the qualtrics documentation: https://www.qualtrics.com/support/survey-platform/survey-module/editing-questions/question-types-guide/specialty-questions/pick-group-and-rank/
@@ -181,11 +183,15 @@
 				# So, by solving this revised MIP model, we will find the most optimal way, under the given constraints, 
 				# to match students with supervisors so as to minimize the overall "badness" of the matches, as represented by the higher values in the actweights matrix.
 		
+		# if some supervisors are allowed to have more than 3 students, specify this here!
+		n_slots_per_supervisor_vec <- c(3, 3, 3, 3, 3, 3, 3, 3, 3) # as long as n_supervisors
+		rbind(n_slots_per_supervisor_vec,LETTERS[1:totalnrsupervisors])
+		
 		model <- MIPModel() %>%
 		  add_variable(x[i, j], i = 1:n_students, j = 1:n_supervisors, type = "binary") %>%
 		  set_objective(sum_expr(actweights[i, j] * x[i, j], i = 1:n_students, j = 1:n_supervisors), "min") %>%
 		  add_constraint(sum_expr(x[i, j], j = 1:n_supervisors) == 1, i = 1:n_students) %>%
-		  add_constraint(sum_expr(x[i, j], i = 1:n_students) <= n_slots_per_supervisor, j = 1:n_supervisors)
+		  add_constraint(sum_expr(x[i, j], i = 1:n_students) <= n_slots_per_supervisor_vec[j], j = 1:n_supervisors) # add_constraint(sum_expr(x[i, j], i = 1:n_students) <= n_slots_per_supervisor, j = 1:n_supervisors)
 
 		# Solve the model
 		result <- solve_model(model, with_ROI(solver = "glpk", verbose = TRUE))
