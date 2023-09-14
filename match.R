@@ -144,31 +144,26 @@
 			# default is a supervisor your did not even mention
 			actweights[,] <- 6
 			
-			# now let's make some loops that write in the actual values
-			
-			# for the first supervisor, lets get the index of the value(s) that need to be overwritten -- I say values because two people might be first choice(!)
-			
-			# and a loop around this to do this for all supervisors
-			
-				# Construct the column name
-				
-			
+			# now let's make some a loop that writes in the actual values
+			for(i in 1:totalnrsupervisors)	
+				{
 				# when they are the 1st choice
-				col_name_0 <- paste("stud_supervis_prefer_0_",i,"_RANK", sep = "")
-				actweights[which(SPRF[[col_name_0]] > 0),1] <- 0
+				col_name_0 <- paste("stud_supervis_prefer_0_",i,"_RANK", sep = "") # for we dynmically define the name of the variable the info should come from
+				actweights[which(SPRF[[col_name_0]] > 0),i] <- 0 # we get a vector with the index of all rows that need to be updated and write this to the supervisor specific column
 			
 				# when they are the 2nd choice
 				col_name_1 <- paste("stud_supervis_prefer_1_",i,"_RANK", sep = "")
-				actweights[which(SPRF[[col_name_1]] > 0),1] <- 2
+				actweights[which(SPRF[[col_name_1]] > 0),i] <- 2
 				
 				# when they are the 3th choice
 				col_name_2 <- paste("stud_supervis_prefer_2_",i,"_RANK", sep = "")
-				actweights[which(SPRF[[col_name_2]] > 0),1] <- 3
+				actweights[which(SPRF[[col_name_2]] > 0),i] <- 3
 				
 				# when they are the 4th choice
 				col_name_3 <- paste("stud_supervis_prefer_3_",i,"_RANK", sep = "")
-				actweights[which(SPRF[[col_name_3]] > 0),1] <- 4
-	
+				actweights[which(SPRF[[col_name_3]] > 0),i] <- 4
+				print(i)
+				}
 			
 		# Create the model
 		model <- MIPModel() %>%
