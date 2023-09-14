@@ -254,3 +254,24 @@
 					  STEX.my_assigned_supervisor = SUIN.letter_in_sep2023surv
 					")
 		nrow(STEX)
+		STEX
+		
+		# order by STEX$my_assigned_supervisor
+		STEX <- STEX[order(STEX$my_assigned_supervisor), ]
+		STEX
+		
+		# export
+		
+			# some cleaning
+			STEX$SNR <- as.integer(STEX$SNR)
+		
+			# Get the current date and time
+			current_time <- Sys.time()
+		
+			# Format it into a string suitable for a file name
+			time_str <- format(current_time, "%Y%m%d_%H%M%S")
+
+			# Create a file name with the timestamp
+			file_name <- paste0("suggested_student-to-supervisor_assignments_", time_str, ".xlsx")
+		
+			write.xlsx(STEX, file_name)
