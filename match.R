@@ -6,6 +6,7 @@
 	library(ompr.roi)
 	library(ROI.plugin.glpk)
 	library(tidyverse)
+	library(sqldf)
 
 # set working directory
 	setwd("C:/Users/zwinkels/Dropbox/Tilburg Teaching/master thesis coordination/rscript_match-students-with-supervisor")
@@ -14,6 +15,10 @@
 # import the datafile with supervisor preferences
 	QRAW <- read.xlsx("qualtrics_export.xlsx", sheet = 1)
 	head(QRAW)
+	
+# import the datafile with supervisor info
+	SUIN <- read.xlsx("sep2023_supervisorinfo.xlsx", sheet = 1)
+	head(SUIN)
 	
 # filter 
 	
@@ -168,6 +173,7 @@
 		# Create the model
 		
 			#  the MIP model is optimizing the assignment of students to supervisors in such a way that:
+				# for the concersation with chatGPT about this see: https://chat.openai.com/share/281459f6-d6dc-453c-885f-c98cd459f821
 
 				# Each student is assigned to exactly one supervisor.
 				# Each supervisor does not oversee more than a certain number of students (n_slots_per_supervisor).
@@ -177,7 +183,7 @@
 		
 		model <- MIPModel() %>%
 		  add_variable(x[i, j], i = 1:n_students, j = 1:n_supervisors, type = "binary") %>%
-		  set_objective(sum_expr(weights[i, j] * x[i, j], i = 1:n_students, j = 1:n_supervisors), "min") %>%
+		  set_objective(sum_expr(actweights[i, j] * x[i, j], i = 1:n_students, j = 1:n_supervisors), "min") %>%
 		  add_constraint(sum_expr(x[i, j], j = 1:n_supervisors) == 1, i = 1:n_students) %>%
 		  add_constraint(sum_expr(x[i, j], i = 1:n_students) <= n_slots_per_supervisor, j = 1:n_supervisors)
 
@@ -208,3 +214,43 @@
 		colnames(assignment_matrix) <- LETTERS[1:totalnrsupervisors]
 		rownames(assignment_matrix) <- 1:totalnrstudents
 		assignment_matrix	
+		
+	# now let's get a dataframe I can export where the unit of analysis is the student and we add the details of their assigned supervisor
+	
+		head(SPRF)
+		names(SPRF)
+		
+		# first, lets select the relevant base variables
+        STEX <- subset(SPRF, select=c("full_name","email","SNR","what_master_track","Extended.master?"))
+		
+		# what supervisor was assigned to each student
+		resvec <- NULL
+		for(i in 1:totalnrstudents)
+		{
+		resvec[i] <- names(which(assignment_matrix[i,] == 1))
+		}
+		resvec
+		STEX$my_assigned_supervisor <- resvec
+		table(STEX$my_assigned_supervisor)
+		
+		# how 'painfull' was this decision for me?
+		resvec2 <- NULL
+		for(i in 1:totalnrstudents)
+		{
+		resvec2[i] <- actweights[i,which(assignment_matrix[i,] == 1)]
+		}
+		resvec2 
+		length(resvec2)
+		
+		STEX$how_painfull <- resvec2
+		table(STEX$how_painfull)
+		
+		# now, lets merge in some info on the supervisors
+		nrow(STEX)
+		
+		STEX <- sqldf("SELECT STEX.*, SUIN.letter_in_sep2023surv, SUIN.ANR as 'supervisor_anr', SUIN.last_name as 'supervisor_last_name', SUIN.first_name as 'supervisor_first_name', SUIN.email as 'supervisor_email'
+					  FROM STEX LEFT JOIN SUIN
+					  ON
+					  STEX.my_assigned_supervisor = SUIN.letter_in_sep2023surv
+					")
+		nrow(STEX)
