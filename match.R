@@ -166,9 +166,18 @@
 				}
 			
 		# Create the model
+		
+			#  the MIP model is optimizing the assignment of students to supervisors in such a way that:
+
+				# Each student is assigned to exactly one supervisor.
+				# Each supervisor does not oversee more than a certain number of students (n_slots_per_supervisor).
+				# The total "badness" or unsuitability of all assignments is minimized, based on your actweights matrix.
+				# So, by solving this revised MIP model, we will find the most optimal way, under the given constraints, 
+				# to match students with supervisors so as to minimize the overall "badness" of the matches, as represented by the higher values in the actweights matrix.
+		
 		model <- MIPModel() %>%
 		  add_variable(x[i, j], i = 1:n_students, j = 1:n_supervisors, type = "binary") %>%
-		  set_objective(sum_expr(weights[i, j] * x[i, j], i = 1:n_students, j = 1:n_supervisors), "max") %>%
+		  set_objective(sum_expr(weights[i, j] * x[i, j], i = 1:n_students, j = 1:n_supervisors), "min") %>%
 		  add_constraint(sum_expr(x[i, j], j = 1:n_supervisors) == 1, i = 1:n_students) %>%
 		  add_constraint(sum_expr(x[i, j], i = 1:n_students) <= n_slots_per_supervisor, j = 1:n_supervisors)
 
@@ -196,173 +205,6 @@
 		}
 
 		assignment_matrix
-
-		# Now, assignment_matrix should be a 25x9 matrix with the assignments.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	# step 1: randomise the student submissions to avoid any first come first serve effects
-
-	# step 2: make a student preference matrix
-	
-		# initialze an empty matrix
-			
-
-
-		# basic algoritm is: start with a random student, give this student their 1st of possible still, otherwise -- / 2nd / 3rd/ 4th.. choice if possible
-
-# Sample student preference matrix (rows: students, columns: supervisors)
-# Here, students = 10, supervisors = 3 for demonstration. 1 indicates a preference.
-student_pref <- matrix(c(
-  1, 0, 1,
-  1, 1, 0,
-  0, 1, 1,
-  1, 0, 0,
-  0, 1, 0,
-  0, 0, 1,
-  1, 1, 1,
-  0, 0, 0,
-  1, 1, 1,
-  0, 1, 1
-), nrow = 10, byrow = TRUE)
-
-# Initialize matching matrix with zeros
-n_students <- nrow(student_pref)
-n_supervisors <- ncol(student_pref)
-matching_matrix <- matrix(0, nrow = n_students, ncol = n_supervisors)
-
-
-
-
-# Initialize supervisor capacity (here, 3 for each supervisor)
-supervisor_capacity <- rep(3, n_supervisors)
-
-# Run the algorithm
-for (student in 1:n_students) {
-  for (supervisor in 1:n_supervisors) {
-    if (student_pref[student, supervisor] == 1) { # If the student prefers this supervisor
-      if (sum(matching_matrix[, supervisor]) < supervisor_capacity[supervisor]) { # If supervisor has capacity
-        matching_matrix[student, supervisor] <- 1 # Assign student to supervisor
-        break # Exit the loop for this student
-      }
-    }
-  }
-}
-
-# Print the final matching matrix
-print(matching_matrix)
-
-
-
-# other option that does not quite seem to work.
-
-		# step 1: define the universe of all possible matches
-		
-			# let's generate all possible combination
-			
-			# first, one combination
-			# Initialize the matrix with zeros
-			matching_matrix <- matrix(0, nrow = totalnrstudents, ncol = totalnrsupervisors)
-			colnames(matching_matrix) <- LETTERS[1:totalnrsupervisors]
-			rownames(matching_matrix) <- 1:totalnrstudents
-			matching_matrix
-		
-		# step 2: calculate the 'pain' score for each possible universe
-		
-		# step 3: pick the universe with lowest pain score
-		
-
-# SOLID start!! -- because now, all possible matrices are all possible orders of this list.
-		
-	# Create an empty list to store the results
-	result_list <- list()
-
-	# Generate all possible combinations of 3 indices out of 25
-	combinations <- combn(1:25, 3)
-
-	# Number of combinations generated
-	num_combinations <- ncol(combinations)
-
-	# Iterate through all the combinations
-	for (i in 1:num_combinations) {
-	  # Generate a zero vector of length 25
-	  vec <- rep(0, 25)
-	  
-	  # Set the indices to 1 for each combination
-	  vec[combinations[, i]] <- 1
-	  
-	  # Store the result in the list
-	  result_list[[i]] <- vec
-	}
-
-	# Convert the list to a matrix for easier viewing
-	result_matrix <- do.call(rbind, result_list)
-
-	# Show first 10 rows of the result
-	head(result_matrix, 10)
-
-# om result_matrix I would like to get a selection of rows that meet the condition that each columnsum = 1
-
-find_combinations <- function(matrix, current_rows = list()) {
-    # If matrix is empty or has no columns left, return the current combination
-    if (ncol(matrix) == 0) {
-        return(list(current_rows))
-    }
-  
-    # If matrix is not empty but has no rows left, return NULL (no combination found)
-    if (nrow(matrix) == 0) {
-        return(NULL)
-    }
-  
-    # Check the first row
-    row <- matrix[1, , drop = FALSE]
-    remaining_matrix <- matrix[-1, , drop = FALSE]  # Exclude the current row for next iteration
-  
-    # Check which columns this row covers
-    covered_columns <- which(row == 1)
-  
-    # If adding the current row to the current combination maintains the requirement, 
-    # proceed with the reduced matrix
-    if (all(sapply(current_rows, function(r) sum(r[covered_columns]) == 0))) {
-        combined_rows <- c(current_rows, list(row))
-        reduced_matrix <- remaining_matrix[, -covered_columns, drop = FALSE]
-        with_current_row <- find_combinations(reduced_matrix, combined_rows)
-    } else {
-        with_current_row <- NULL
-    }
-  
-    # Also consider the possibility without including the current row
-    without_current_row <- find_combinations(remaining_matrix, current_rows)
-  
-    # Combine and return the results
-    return(c(with_current_row, without_current_row))
-}
-
-# Call the function on result_matrix
-combinations <- find_combinations(result_matrix)
-
-# Filter out NULLs and get the row indices from result_matrix for each combination
-combinations <- Filter(Negate(is.null), combinations)
-combination_indices <- lapply(combinations, function(comb) {
-    sapply(comb, function(row) which(apply(result_matrix, 1, function(r) all(r == row))))
-})
-
-# Displaying the first 10 combinations of row indices
-head(combination_indices, 10)
-
+		colnames(assignment_matrix) <- LETTERS[1:totalnrsupervisors]
+		rownames(assignment_matrix) <- 1:totalnrstudents
+		assignment_matrix	
