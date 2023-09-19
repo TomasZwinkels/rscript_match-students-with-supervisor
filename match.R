@@ -1,4 +1,3 @@
-
 # packages e.t.c.
 	# install.packages(c("ompr", "ompr.roi", "ROI.plugin.glpk","tidyverse"))
 	library(openxlsx)
@@ -18,38 +17,84 @@
 	
 	QRAW$SNR <-  as.numeric(QRAW$SNR)
 	
-	QRAW[which(QRAW$SNR == 9999999),]
-	
 # import the datafile with supervisor info
 	SUIN <- read.xlsx("sep2023_supervisorinfo.xlsx", sheet = 1)
 	head(SUIN)
 	
 # filter 
-	
 	# data line 2 is stupid
 	QRAW <- QRAW[-1,]
 	head(QRAW)
 	
-	SPRF <- QRAW
+# we need to get rid of students that signed up with HWS as they need to sign up for a circle by email
 
+	table(QRAW$what_master_track)
+	nrow(QRAW)
+	QRAW <- QRAW[which(!QRAW$what_master_track == "HWS - Master track: ‘Health, Wellbeing and Society’"),]
+	nrow(QRAW)	
+	
+### this is where manual fixes can be done if there are entries that are messing things up, you can also edit the data on qualtrics and export again
+
+	# the student on row 31 is a duplicate in this case, we look up the responseid (R_2qBH833O30RJqQ7) of this double entry and get rid of it.
+	nrow(QRAW)
+	QRAW <- QRAW[which(!QRAW$ResponseId == "R_2qBH833O30RJqQ7"),]
+	nrow(QRAW)	
+	
+###
+	
 # CHECK: any students that signed up double?
-	names(SPRF)
-	table(duplicated(SPRF$email))
-	table(duplicated(SPRF$SNR))
-	
-	# did all students submit supervisor preferences?
-	SPRF[which(SPRF$stud_supervis_prefer_0_GROUP == ""),] # this student is also here twice, so let's remove here
-	
-	nrow(SPRF)
-	SPRF <- SPRF[which(!SPRF$SNR == 9999999),]
-	nrow(SPRF)
 
-# get rid of students that signed up with HWS
-	head(SPRF)
-
-	table(SPRF$what_master_track)
-	nrow(SPRF)
-	SPRF <- SPRF[which(!SPRF$what_master_track == "HWS - Master track: ‘Health, Wellbeing and Society’"),]
+	# checking for duplicates
+		noduplicates_SNR <- function(DF) {
+		  if (length(names(table(duplicated(DF$SNR)))) > 1) {
+			return(FALSE)
+		  } else {
+			return(TRUE)
+		  }
+		}
+		noduplicates_SNR(QRAW)
+		QRAW[which(duplicated(QRAW$SNR)),]# return them if they are there
+		
+		QRAW$email <- tolower(QRAW$email)
+		noduplicates_email <- function(DF) {
+		  if (length(names(table(duplicated(DF$email)))) > 1) {
+			return(FALSE)
+		  } else {
+			return(TRUE)
+		  }
+		}
+		noduplicates_email(QRAW)
+		QRAW[which(duplicated(QRAW$email)),]# return them if they are there
+		
+		noduplicates_full_name <- function(DF) {
+		  if (length(names(table(duplicated(DF$full_name)))) > 1) {
+			return(FALSE)
+		  } else {
+			return(TRUE)
+		  }
+		}
+		noduplicates_full_name(QRAW)
+		QRAW[which(duplicated(QRAW$full_name)),]# return them if they are there
+	
+# CHECK did all students sign for a circle? - if one or more students did not (and did not do an attempt later where they did)
+# these students NEED TO BE CONTACTED BY EMAIL FIRST BEFORE YOU CONTINUE
+	
+	
+		allstudentssignedup <- function(DF) {
+		  if (length(names(table(DF$stud_supervis_prefer_0_GROUP == "" | is.na(DF$stud_supervis_prefer_0_GROUP)))) > 1) {
+			return(FALSE)
+		  } else {
+			return(TRUE)
+		  }
+		}
+		allstudentssignedup(QRAW)
+		QRAW[which(QRAW$stud_supervis_prefer_0_GROUP == "" | is.na(QRAW$stud_supervis_prefer_0_GROUP)),] # return the problematic cases, if any
+	
+	# ONLY if all checks pass, the script can continue
+	if(noduplicates_SNR(QRAW) & noduplicates_email(QRAW) & noduplicates_full_name(QRAW))
+	{
+	SPRF <- QRAW
+	}
 	nrow(SPRF)
 
 # how many Extended master
