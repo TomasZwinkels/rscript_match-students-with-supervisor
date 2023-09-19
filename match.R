@@ -13,8 +13,12 @@
 	getwd()
 
 # import the datafile with supervisor preferences
-	QRAW <- read.xlsx("qualtrics_export.xlsx", sheet = 1)
+	QRAW <- read.xlsx("qualtrics_export_20230918.xlsx", sheet = 1) # QRAW <- read.xlsx("qualtrics_export_20230918.xlsx", sheet = 1)
 	head(QRAW)
+	
+	QRAW$SNR <-  as.numeric(QRAW$SNR)
+	
+	QRAW[which(QRAW$SNR == 9999999),]
 	
 # import the datafile with supervisor info
 	SUIN <- read.xlsx("sep2023_supervisorinfo.xlsx", sheet = 1)
@@ -28,6 +32,41 @@
 	
 	SPRF <- QRAW
 
+# CHECK: any students that signed up double?
+	names(SPRF)
+	table(duplicated(SPRF$email))
+	table(duplicated(SPRF$SNR))
+	
+	# did all students submit supervisor preferences?
+	SPRF[which(SPRF$stud_supervis_prefer_0_GROUP == ""),] # this student is also here twice, so let's remove here
+	
+	nrow(SPRF)
+	SPRF <- SPRF[which(!SPRF$SNR == 9999999),]
+	nrow(SPRF)
+
+# get rid of students that signed up with HWS
+	head(SPRF)
+
+	table(SPRF$what_master_track)
+	nrow(SPRF)
+	SPRF <- SPRF[which(!SPRF$what_master_track == "HWS - Master track: ‘Health, Wellbeing and Society’"),]
+	nrow(SPRF)
+
+# how many Extended master
+	names(SPRF)[which(names(SPRF) == "Extended.master?")] <- "extended_master"
+
+	table(SPRF$extended_master)
+	
+# SPEM: we fork a dataframe here for Students in the Extended master, they get assigned as a '4th' student later.
+	
+	# make the ones that will be manually assigned
+	SPEM <- SPRF[which(SPRF$extended_master == "I am seriously considering applying for the extended master, or I have already applied."),]
+	nrow(SPEM)
+	
+	# and filter the remaining
+	SPRF <- SPRF[which(!SPRF$extended_master == "I am seriously considering applying for the extended master, or I have already applied."),]
+	nrow(SPRF)
+	
 # some setting stuff
 
 	totalnrstudents <- nrow(SPRF)
@@ -38,11 +77,6 @@
 	
 	n_slots_per_supervisor <- 3
 	n_slots_per_supervisor
-
-# CHECK: any students that signed up double?
-	names(SPRF)
-	table(duplicated(SPRF$email))
-	table(duplicated(SPRF$SNR))
 	
 # OK, lets get some descriptives first
 
@@ -184,7 +218,9 @@
 				# to match students with supervisors so as to minimize the overall "badness" of the matches, as represented by the higher values in the actweights matrix.
 		
 		# if some supervisors are allowed to have more than 3 students, specify this here!
-		n_slots_per_supervisor_vec <- c(3, 3, 3, 3, 3, 3, 3, 3, 3) # as long as n_supervisors
+		n_slots_per_supervisor_vec <- c(3, 3, 3, 3, 3, 6, 3, 3, 3) # as long as n_supervisors
+		sum(n_slots_per_supervisor_vec)
+		nrow(SPRF)
 		rbind(n_slots_per_supervisor_vec,LETTERS[1:totalnrsupervisors])
 		
 		model <- MIPModel() %>%
@@ -220,14 +256,33 @@
 		colnames(assignment_matrix) <- LETTERS[1:totalnrsupervisors]
 		rownames(assignment_matrix) <- 1:totalnrstudents
 		assignment_matrix	
+		colSums(assignment_matrix)
+		sum(colSums(assignment_matrix))
 		
-	# now let's get a dataframe I can export where the unit of analysis is the student and we add the details of their assigned supervisor
+	# manual assignment of extended master students
+		SPEM <- subset(SPEM, select=c("full_name","email","SNR","what_master_track","extended_master","student_explanation"))
+		
+		names(SPEM)
+		SPEM
+
+		SPEM$my_assigned_supervisor <- NA
+		
+		SPEM$my_assigned_supervisor[which(SPEM$email == "R.j.barzegar@tilburguniversity.edu")] <- "C"
+		SPEM$my_assigned_supervisor[which(SPEM$email == "g.g.greco@tilburguniversity.edu")] <- "E"
+		SPEM$my_assigned_supervisor[which(SPEM$email == "r.s.p.hurl@tilburguniversity.edu")] <- "G"
+		SPEM$my_assigned_supervisor[which(SPEM$email == "j.m.vdrMeer_1@tilburguniversity.edu")] <- "I"
+		SPEM$my_assigned_supervisor[which(SPEM$email == "w.b.p.kwint@tilburguniversity.edu")] <- "B"
+		SPEM$my_assigned_supervisor[which(SPEM$email == "t.j.p.vanaert@tilburguniversity.edu")] <- "A"
 	
+		SPEM$how_painfull <- NA
+
+
+	# now let's get a dataframe I can export where the unit of analysis is the student and we add the details of their assigned supervisor
 		head(SPRF)
 		names(SPRF)
 		
 		# first, lets select the relevant base variables
-        STEX <- subset(SPRF, select=c("full_name","email","SNR","what_master_track","Extended.master?"))
+        STEX <- subset(SPRF, select=c("full_name","email","SNR","what_master_track","extended_master","student_explanation"))
 		
 		# what supervisor was assigned to each student
 		resvec <- NULL
@@ -251,25 +306,31 @@
 		STEX$how_painfull <- resvec2
 		table(STEX$how_painfull)
 		
+		names(STEX) == names(SPEM) # should be all TRUE
+
+		EXPO <- rbind(STEX,SPEM)
+		nrow(STEX)+nrow(SPEM)
+		nrow(EXPO)
+		
+		EXPO
+		
 		# now, lets merge in some info on the supervisors
-		nrow(STEX)
+		nrow(EXPO)
+		names(EXPO)
 		
-		STEX <- sqldf("SELECT STEX.*, SUIN.letter_in_sep2023surv, SUIN.ANR as 'supervisor_anr', SUIN.last_name as 'supervisor_last_name', SUIN.first_name as 'supervisor_first_name', SUIN.email as 'supervisor_email'
-					  FROM STEX LEFT JOIN SUIN
+		EXPO <- sqldf("SELECT EXPO.*, SUIN.letter_in_sep2023surv, SUIN.ANR as 'supervisor_anr', SUIN.last_name as 'supervisor_last_name', SUIN.first_name as 'supervisor_first_name', SUIN.email as 'supervisor_email'
+					  FROM EXPO LEFT JOIN SUIN
 					  ON
-					  STEX.my_assigned_supervisor = SUIN.letter_in_sep2023surv
+					  EXPO.my_assigned_supervisor = SUIN.letter_in_sep2023surv
 					")
-		nrow(STEX)
-		STEX
+		nrow(EXPO)
+		EXPO
 		
-		# order by STEX$my_assigned_supervisor
-		STEX <- STEX[order(STEX$my_assigned_supervisor), ]
-		STEX
+		# order by EXPO$my_assigned_supervisor
+		EXPO <- EXPO[order(EXPO$my_assigned_supervisor), ]
+		EXPO
 		
 		# export
-		
-			# some cleaning
-			STEX$SNR <- as.integer(STEX$SNR)
 		
 			# Get the current date and time
 			current_time <- Sys.time()
@@ -280,4 +341,4 @@
 			# Create a file name with the timestamp
 			file_name <- paste0("suggested_student-to-supervisor_assignments_", time_str, ".xlsx")
 		
-			write.xlsx(STEX, file_name)
+			write.xlsx(EXPO, file_name)
