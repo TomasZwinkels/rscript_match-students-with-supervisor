@@ -15,16 +15,23 @@
 	QRAW <- read.xlsx("qualtrics_export_20230918.xlsx", sheet = 1) # QRAW <- read.xlsx("qualtrics_export_20230918.xlsx", sheet = 1)
 	head(QRAW)
 	
+	# filter 
+	# data line 2 is stupid
+	QRAW <- QRAW[-1,]
+	head(QRAW)
+	
+	########### SELECT THE RELEVANT COHORT HERE
+	nrow(QRAW)
+	QRAW <- QRAW[which(QRAW$student_cohort == "coh_sep-2023"),]
+	nrow(QRAW)	
+	###########
+	
+	# quick fix for later
 	QRAW$SNR <-  as.numeric(QRAW$SNR)
 	
 # import the datafile with supervisor info
 	SUIN <- read.xlsx("sep2023_supervisorinfo.xlsx", sheet = 1)
 	head(SUIN)
-	
-# filter 
-	# data line 2 is stupid
-	QRAW <- QRAW[-1,]
-	head(QRAW)
 	
 # we need to get rid of students that signed up with HWS as they need to sign up for a circle by email
 
