@@ -390,7 +390,37 @@
 			# Format it into a string suitable for a file name
 			time_str <- format(current_time, "%Y%m%d_%H%M%S")
 
-			# Create a file name with the timestamp
-			file_name <- paste0("suggested_student-to-supervisor_assignments_", time_str, ".xlsx")
+			# EXPORT THE COMPLETE FILE
+				# Create a file name with the timestamp
+				file_name <- paste0("suggested_student-to-supervisor_assignments_", time_str, ".xlsx")
+				write.xlsx(EXPO, file_name)
+				
+			# EXPORT THE FILES IN THE FORMAT MIRSIM	 (functioneel beheerder thesisdossier.uvt.nl) NEEDS them for import
+				
+				# SET the course codes
+				PPSD_coursecode <- "441803-M-24"
+				PPSinCP_coursecode <- "400991-M-24"
+			
+				# course codes for the correct filenames
+				EXPO$coursecodes <- NA
+				EXPO$coursecodes <- ifelse(QRAW$what_master_track == "GSMI / PPSD - Master track: 'Politics, Policy and Societal Development'",PPSD_coursecode,NA)
+				EXPO$coursecodes <- ifelse(QRAW$what_master_track == "PPSinCP - Master track: ‘Politics, Policy and Society in Comparative Perspective’",PPSinCP_coursecode,EXPO$coursecodes)
+				table(EXPO$coursecodes)
+				nrow(EXPO) == sum(table(EXPO$coursecodes)) # should return TRUE
 		
-			write.xlsx(EXPO, file_name)
+				# export PPSD
+					EXPO_PPSD <- sqldf(paste0("SELECT EXPO.SNR, EXPO.supervisor_anr as 'ANR' FROM EXPO WHERE coursecodes = '",PPSD_coursecode,"'"))
+					nrow(EXPO_PPSD)
+					EXPO_PPSD
+					
+					file_name2 <- paste0(PPSD_coursecode,"_", time_str, ".xlsx")
+					write.xlsx(EXPO_PPSD, file_name2)
+
+				# export PPSinCP
+					EXPO_PPSinCP <- sqldf(paste0("SELECT EXPO.SNR, EXPO.supervisor_anr as 'ANR' FROM EXPO WHERE coursecodes = '",PPSinCP_coursecode,"'"))
+					nrow(EXPO_PPSinCP)
+					EXPO_PPSinCP
+					
+					file_name2 <- paste0(PPSinCP_coursecode,"_", time_str, ".xlsx")
+					write.xlsx(EXPO_PPSinCP, file_name2)
+					
