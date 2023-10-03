@@ -214,13 +214,19 @@
 
 # OK, now for interesting part, how to go about and do this.
 
-
 	# latest chatGTP suggestion
 
 		# Define the number of students, supervisors and their preferences
-		n_students <- totalnrstudents
-		n_supervisors <- totalnrsupervisors
-		n_slots_per_supervisor <- 3
+			n_students <- totalnrstudents
+			n_supervisors <- totalnrsupervisors
+		
+		# also, if some supervisors are allowed to have more than 3 students, specify this here! Otherwise set all to 3.
+			n_slots_per_supervisor_vec <- c(3, 3, 3, 3, 3, 6, 4, 3, 3) # as long as n_supervisors
+			sum(n_slots_per_supervisor_vec)
+			nrow(SPRF)
+			rbind(n_slots_per_supervisor_vec,LETTERS[1:totalnrsupervisors])
+
+	# allright, now lets put this in a function where the input is: n_students, n_supervisors and n_slots_per_supervisor_vec and the output is the assignment_matrix for this group
 
 		# Let's say weights are from 4 to 1 for choices from 1st to 4th.
 		# This should actually come from your dataset
@@ -264,22 +270,16 @@
 				# for the concersation with chatGPT about this see: https://chat.openai.com/share/281459f6-d6dc-453c-885f-c98cd459f821
 
 				# Each student is assigned to exactly one supervisor.
-				# Each supervisor does not oversee more than a certain number of students (n_slots_per_supervisor).
+				# Each supervisor does not oversee more than a certain number of students (n_slots_per_supervisor_vec).
 				# The total "badness" or unsuitability of all assignments is minimized, based on your actweights matrix.
 				# So, by solving this revised MIP model, we will find the most optimal way, under the given constraints, 
 				# to match students with supervisors so as to minimize the overall "badness" of the matches, as represented by the higher values in the actweights matrix.
-		
-		# if some supervisors are allowed to have more than 3 students, specify this here!
-		n_slots_per_supervisor_vec <- c(3, 3, 3, 3, 3, 6, 3, 3, 3) # as long as n_supervisors
-		sum(n_slots_per_supervisor_vec)
-		nrow(SPRF)
-		rbind(n_slots_per_supervisor_vec,LETTERS[1:totalnrsupervisors])
 		
 		model <- MIPModel() %>%
 		  add_variable(x[i, j], i = 1:n_students, j = 1:n_supervisors, type = "binary") %>%
 		  set_objective(sum_expr(actweights[i, j] * x[i, j], i = 1:n_students, j = 1:n_supervisors), "min") %>%
 		  add_constraint(sum_expr(x[i, j], j = 1:n_supervisors) == 1, i = 1:n_students) %>%
-		  add_constraint(sum_expr(x[i, j], i = 1:n_students) <= n_slots_per_supervisor_vec[j], j = 1:n_supervisors) # add_constraint(sum_expr(x[i, j], i = 1:n_students) <= n_slots_per_supervisor, j = 1:n_supervisors)
+		  add_constraint(sum_expr(x[i, j], i = 1:n_students) <= n_slots_per_supervisor_vec[j], j = 1:n_supervisors) 
 
 		# Solve the model
 		result <- solve_model(model, with_ROI(solver = "glpk", verbose = TRUE))
@@ -327,7 +327,6 @@
 		SPEM$my_assigned_supervisor[which(SPEM$email == "t.j.p.vanaert@tilburguniversity.edu")] <- "A"
 	
 		SPEM$how_painfull <- NA
-
 
 	# now let's get a dataframe I can export where the unit of analysis is the student and we add the details of their assigned supervisor
 		head(SPRF)
@@ -395,6 +394,14 @@
 				file_name <- paste0("suggested_student-to-supervisor_assignments_", time_str, ".xlsx")
 				write.xlsx(EXPO, file_name)
 				
+			# PLEASE NOTE: THIS PART ALWAYS NEEDS TO BE RUN MANUALLY 
+			#
+			#	OPTION 1: SELECT DATA FROM ABOVE
+			#		MIRS <-  EXPO
+			#	OPTION 2: SELECT AN EXCEL SHEET IN THE SAME FORMAT THAT WAS MANUALLY EDITED
+			#		MIRS <- read.xlsx("suggested_student-to-supervisor_assignments_versiontobeimportedforexporttoMirsim.xlsx", sheet = 1) 
+			#
+			
 			# EXPORT THE FILES IN THE FORMAT MIRSIM	 (functioneel beheerder thesisdossier.uvt.nl) NEEDS them for import
 				
 				# SET the course codes
@@ -402,14 +409,14 @@
 				PPSinCP_coursecode <- "400991-M-24"
 			
 				# course codes for the correct filenames
-				EXPO$coursecodes <- NA
-				EXPO$coursecodes <- ifelse(QRAW$what_master_track == "GSMI / PPSD - Master track: 'Politics, Policy and Societal Development'",PPSD_coursecode,NA)
-				EXPO$coursecodes <- ifelse(QRAW$what_master_track == "PPSinCP - Master track: ‘Politics, Policy and Society in Comparative Perspective’",PPSinCP_coursecode,EXPO$coursecodes)
-				table(EXPO$coursecodes)
-				nrow(EXPO) == sum(table(EXPO$coursecodes)) # should return TRUE
+				MIRS$coursecodes <- NA
+				MIRS$coursecodes <- ifelse(QRAW$what_master_track == "GSMI / PPSD - Master track: 'Politics, Policy and Societal Development'",PPSD_coursecode,NA)
+				MIRS$coursecodes <- ifelse(QRAW$what_master_track == "PPSinCP - Master track: ‘Politics, Policy and Society in Comparative Perspective’",PPSinCP_coursecode,MIRS$coursecodes)
+				table(MIRS$coursecodes)
+				nrow(MIRS) == sum(table(MIRS$coursecodes)) # should return TRUE
 		
 				# export PPSD
-					EXPO_PPSD <- sqldf(paste0("SELECT EXPO.SNR, EXPO.supervisor_anr as 'ANR' FROM EXPO WHERE coursecodes = '",PPSD_coursecode,"'"))
+					EXPO_PPSD <- sqldf(paste0("SELECT MIRS.SNR, MIRS.supervisor_anr as 'ANR' FROM MIRS WHERE coursecodes = '",PPSD_coursecode,"'"))
 					nrow(EXPO_PPSD)
 					EXPO_PPSD
 					
@@ -417,7 +424,7 @@
 					write.xlsx(EXPO_PPSD, file_name2)
 
 				# export PPSinCP
-					EXPO_PPSinCP <- sqldf(paste0("SELECT EXPO.SNR, EXPO.supervisor_anr as 'ANR' FROM EXPO WHERE coursecodes = '",PPSinCP_coursecode,"'"))
+					EXPO_PPSinCP <- sqldf(paste0("SELECT MIRS.SNR, MIRS.supervisor_anr as 'ANR' FROM MIRS WHERE coursecodes = '",PPSinCP_coursecode,"'"))
 					nrow(EXPO_PPSinCP)
 					EXPO_PPSinCP
 					
