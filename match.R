@@ -402,6 +402,34 @@
 			#		MIRS <- read.xlsx("suggested_student-to-supervisor_assignments_versiontobeimportedforexporttoMirsim.xlsx", sheet = 1) 
 			#
 			
+			# because manual edits are error-prone, two data integity checks, of they fail, we manual BREAK the data
+			
+				# do all the supervisors always have the same ANR
+					
+					# Create a contingency table
+						table_AB <- table(MIRS$supervisor_last_name, MIRS$supervisor_anr)
+						if(!all(apply(table_AB, 1, max) == table(MIRS$supervisor_last_name)))
+						{
+							MIRS <- NA# Break Stuff.. It's just one of those days...
+						} else {print("Passed")}
+				
+				# are all the SNR and Student name matches the same as in the origional data (and do the exact same people come back?).
+				
+					# first, same constistency check
+					table_CD <- table(MIRS$full_name,MIRS$SNR)
+						if(!all(apply(table_CD, 1, max) == table(MIRS$full_name)))
+						{
+							MIRS <- NA# Break Stuff.. It's just one of those days...
+						} else {print("Passed")}
+					
+					# full match
+						if(!all(table(EXPO$full_name,EXPO$SNR) == table(MIRS$full_name,MIRS$SNR)))
+						{
+							MIRS <- NA# Break Stuff.. It's just one of those days...
+						} else {print("Passed")}
+			
+				# if you still have data here ('MIRS') all the checks above passed.
+			
 			# EXPORT THE FILES IN THE FORMAT MIRSIM	 (functioneel beheerder thesisdossier.uvt.nl) NEEDS them for import
 				
 				# SET the course codes
@@ -410,8 +438,8 @@
 			
 				# course codes for the correct filenames
 				MIRS$coursecodes <- NA
-				MIRS$coursecodes <- ifelse(QRAW$what_master_track == "GSMI / PPSD - Master track: 'Politics, Policy and Societal Development'",PPSD_coursecode,NA)
-				MIRS$coursecodes <- ifelse(QRAW$what_master_track == "PPSinCP - Master track: ‘Politics, Policy and Society in Comparative Perspective’",PPSinCP_coursecode,MIRS$coursecodes)
+				MIRS$coursecodes <- ifelse(grepl("GSMI", MIRS$what_master_track), PPSD_coursecode, NA)
+				MIRS$coursecodes <- ifelse(grepl("PPSinCP", MIRS$what_master_track), PPSinCP_coursecode, MIRS$coursecodes)
 				table(MIRS$coursecodes)
 				nrow(MIRS) == sum(table(MIRS$coursecodes)) # should return TRUE
 		
@@ -430,4 +458,5 @@
 					
 					file_name2 <- paste0(PPSinCP_coursecode,"_", time_str, ".xlsx")
 					write.xlsx(EXPO_PPSinCP, file_name2)
+					
 					
