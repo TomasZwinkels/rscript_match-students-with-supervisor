@@ -12,7 +12,7 @@
 	getwd()
 
 # import the datafile with supervisor preferences
-	QRAW <- read.xlsx("qualtrics_export_20230918.xlsx", sheet = 1) # QRAW <- read.xlsx("qualtrics_export_20230918.xlsx", sheet = 1)
+	QRAW <- read.xlsx("qualtrics_export_20230918-temptest.xlsx", sheet = 1) # QRAW <- read.xlsx("qualtrics_export_20230918.xlsx", sheet = 1)
 	head(QRAW)
 	
 	# filter 
@@ -23,6 +23,7 @@
 	########### SELECT THE RELEVANT COHORT HERE
 	nrow(QRAW)
 	QRAW <- QRAW[which(QRAW$student_cohort == "coh_sep-2023"),]
+#	QRAW <- QRAW[which(QRAW$student_cohort == "Coh:February 2024"),]
 	nrow(QRAW)	
 	###########
 	
@@ -86,7 +87,6 @@
 # CHECK did all students sign for a circle? - if one or more students did not (and did not do an attempt later where they did)
 # these students NEED TO BE CONTACTED BY EMAIL FIRST BEFORE YOU CONTINUE
 	
-	
 		allstudentssignedup <- function(DF) {
 		  if (length(names(table(DF$stud_supervis_prefer_0_GROUP == "" | is.na(DF$stud_supervis_prefer_0_GROUP)))) > 1) {
 			return(FALSE)
@@ -111,12 +111,19 @@
 	
 # SPEM: we fork a dataframe here for Students in the Extended master, they get assigned as a '4th' student later.
 	
-	# make the ones that will be manually assigned
-	SPEM <- SPRF[which(SPRF$extended_master == "I am seriously considering applying for the extended master, or I have already applied."),]
-	nrow(SPEM)
+	# make the ones that will be manually assigned (this will be dropped from Feb 2024 onward!)
+#	SPEM <- SPRF[which(SPRF$extended_master == "I am seriously considering applying for the extended master, or I have already applied."),]
+#	nrow(SPEM)
 	
 	# and filter the remaining
-	SPRF <- SPRF[which(!SPRF$extended_master == "I am seriously considering applying for the extended master, or I have already applied."),]
+	SPRF <- SPRF[which(!SPRF$extended_master == "Yes, I applied for the extended master recently."),] # these people will 95% sure all be accepted and won't be assigned a thesis circle
+	nrow(SPRF)
+	
+	## if any Other, break stuf!
+	if("Other (please specify)." %in% names(table(SPRF$extended_master)))
+	{
+		SPRF <- NA
+	}
 	nrow(SPRF)
 	
 # some setting stuff
@@ -263,7 +270,12 @@
 				actweights[which(SPRF[[col_name_3]] > 0),i] <- 4
 				print(i)
 				}
-			
+		
+		# and if you are an extended master student currently doing an intership: double the pain!
+		indexvecofexmastu <- which(SPRF$extended_master == "Yes, I applied for the extended master roughly half a year ago and am currently doing an internship.")
+		actweights[indexvecofexmastu,] <- actweights[indexvecofexmastu,] * 2
+		
+		
 		# Create the model
 		
 			#  the MIP model is optimizing the assignment of students to supervisors in such a way that:
@@ -373,19 +385,19 @@
 		# adding sub columns that are needed for the thesis dossier import
 		
 		## make sure to set this one correctly manually!
-		EXPO$Category <- "Coh:September 2023"
+		EXPO$Category <- "EXPO$Coh:February 2024"
 		table(EXPO$Category)
 		
 		## getting the double degree categories all good
 		EXPO$Subcategory <- EXPO$double_degree
 		EXPO$Subcategory[which(EXPO$Subcategory == "No, I am NOT following the double-degree program.")] <- "Degree in Tilburg"
-		EXPO$Subcategory[which(EXPO$Subcategory == "Yes, I am doing the double-degree with Trento.")] <- "double-degree with Trento"
-		EXPO$Subcategory[which(EXPO$Subcategory == "Yes, I am doing the double-degree with Barcelona.")] <- "double-degree with Barcelona"
-		EXPO$Subcategory[which(EXPO$Subcategory == "Yes, I am doing the double-degree with Bamberg.")] <- "double-degree with Bamberg"
+		EXPO$Subcategory[which(EXPO$Subcategory == "Yes, I am doing the double-degree with Trento")] <- "double-degree with Trento"
+		EXPO$Subcategory[which(EXPO$Subcategory == "Yes, I am doing the double-degree with Barcelona")] <- "double-degree with Barcelona"
+		EXPO$Subcategory[which(EXPO$Subcategory == "Yes, I am doing the double-degree with Bamberg")] <- "double-degree with Bamberg"
 		
 		## and the assigned supervisor and subjects as they occur in thesisdossier
 		
-		EXPO <- sqldf("SELECT EXPO.*, SUIN.letter_in_sep2023surv, SUIN.ANR as 'supervisor_anr', SUIN.last_name as 'supervisor_last_name', SUIN.first_name as 'supervisor_first_name', SUIN.email as 'supervisor_email', SUIN.'Subject'
+		EXPO <- sqldf("SELECT EXPO.*, SUIN.letter_in_sep2023surv, SUIN.ANR as 'supervisor_anr', SUIN.last_name as 'supervisor_last_name', SUIN.first_name as 'supervisor_first_name', SUIN.email as 'supervisor_email', SUIN.circle_description as 'Subject'
 					  FROM EXPO LEFT JOIN SUIN
 					  ON
 					  EXPO.my_assigned_supervisor = SUIN.letter_in_sep2023surv
@@ -415,7 +427,7 @@
 			#	OPTION 1: SELECT DATA FROM ABOVE
 			#		MIRS <-  EXPO
 			#	OPTION 2: SELECT AN EXCEL SHEET IN THE SAME FORMAT THAT WAS MANUALLY EDITED
-			#		MIRS <- read.xlsx("suggested_student-to-supervisor_assignments_versiontobeimportedforexporttoMirsim.xlsx", sheet = 1) 
+			#		MIRS <- read.xlsx("suggested_student-to-supervisor_assignments_versiontobeimportedforexporttoMirsim_v2.xlsx", sheet = 1) 
 			#
 			
 			# because manual edits are error-prone, two data integity checks, of they fail, we manual BREAK the data
@@ -460,7 +472,7 @@
 				nrow(MIRS) == sum(table(MIRS$coursecodes)) # should return TRUE
 		
 				# export PPSD
-					EXPO_PPSD <- sqldf(paste0("SELECT MIRS.SNR, MIRS.supervisor_anr as 'ANR' FROM MIRS WHERE coursecodes = '",PPSD_coursecode,"'"))
+					EXPO_PPSD <- sqldf(paste0("SELECT MIRS.SNR, MIRS.supervisor_anr as 'ANR', MIRS.Category, MIRS.Subcategory, MIRS.Subject FROM MIRS WHERE coursecodes = '",PPSD_coursecode,"'"))
 					nrow(EXPO_PPSD)
 					EXPO_PPSD
 					
@@ -468,7 +480,7 @@
 					write.xlsx(EXPO_PPSD, file_name2)
 
 				# export PPSinCP
-					EXPO_PPSinCP <- sqldf(paste0("SELECT MIRS.SNR, MIRS.supervisor_anr as 'ANR' FROM MIRS WHERE coursecodes = '",PPSinCP_coursecode,"'"))
+					EXPO_PPSinCP <- sqldf(paste0("SELECT MIRS.SNR, MIRS.supervisor_anr as 'ANR', MIRS.Category, MIRS.Subcategory, MIRS.Subject FROM MIRS WHERE coursecodes = '",PPSinCP_coursecode,"'"))
 					nrow(EXPO_PPSinCP)
 					EXPO_PPSinCP
 					
