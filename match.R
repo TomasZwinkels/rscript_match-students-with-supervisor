@@ -333,7 +333,7 @@
 		names(SPRF)
 		
 		# first, lets select the relevant base variables
-        STEX <- subset(SPRF, select=c("full_name","email","SNR","what_master_track","extended_master","student_explanation"))
+        STEX <- subset(SPRF, select=c("full_name","email","SNR","what_master_track","extended_master","student_expl_1schoi"))
 		
 		# what supervisor was assigned to each student
 		resvec <- NULL
@@ -368,8 +368,24 @@
 		# now, lets merge in some info on the supervisors
 		nrow(EXPO)
 		names(EXPO)
+		head(EXPO)
 		
-		EXPO <- sqldf("SELECT EXPO.*, SUIN.letter_in_sep2023surv, SUIN.ANR as 'supervisor_anr', SUIN.last_name as 'supervisor_last_name', SUIN.first_name as 'supervisor_first_name', SUIN.email as 'supervisor_email'
+		# adding sub columns that are needed for the thesis dossier import
+		
+		## make sure to set this one correctly manually!
+		EXPO$Category <- "Coh:September 2023"
+		table(EXPO$Category)
+		
+		## getting the double degree categories all good
+		EXPO$Subcategory <- EXPO$double_degree
+		EXPO$Subcategory[which(EXPO$Subcategory == "No, I am NOT following the double-degree program.")] <- "Degree in Tilburg"
+		EXPO$Subcategory[which(EXPO$Subcategory == "Yes, I am doing the double-degree with Trento.")] <- "double-degree with Trento"
+		EXPO$Subcategory[which(EXPO$Subcategory == "Yes, I am doing the double-degree with Barcelona.")] <- "double-degree with Barcelona"
+		EXPO$Subcategory[which(EXPO$Subcategory == "Yes, I am doing the double-degree with Bamberg.")] <- "double-degree with Bamberg"
+		
+		## and the assigned supervisor and subjects as they occur in thesisdossier
+		
+		EXPO <- sqldf("SELECT EXPO.*, SUIN.letter_in_sep2023surv, SUIN.ANR as 'supervisor_anr', SUIN.last_name as 'supervisor_last_name', SUIN.first_name as 'supervisor_first_name', SUIN.email as 'supervisor_email', SUIN.'Subject'
 					  FROM EXPO LEFT JOIN SUIN
 					  ON
 					  EXPO.my_assigned_supervisor = SUIN.letter_in_sep2023surv
