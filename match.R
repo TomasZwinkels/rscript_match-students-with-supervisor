@@ -12,7 +12,7 @@
 	getwd()
 
 # import the datafile with supervisor preferences
-	QRAW <- read.xlsx("qualtrics_export_20230918-temptest.xlsx", sheet = 1) # QRAW <- read.xlsx("qualtrics_export_20230918.xlsx", sheet = 1)
+	QRAW <- read.xlsx("qualtrics_export_20240216.xlsx", sheet = 1) # QRAW <- read.xlsx("qualtrics_export_20230918.xlsx", sheet = 1)
 	head(QRAW)
 	
 	# filter 
@@ -22,8 +22,8 @@
 	
 	########### SELECT THE RELEVANT COHORT HERE
 	nrow(QRAW)
-	QRAW <- QRAW[which(QRAW$student_cohort == "coh_sep-2023"),]
-#	QRAW <- QRAW[which(QRAW$student_cohort == "Coh:February 2024"),]
+#	QRAW <- QRAW[which(QRAW$student_cohort == "coh_sep-2023"),]
+	QRAW <- QRAW[which(QRAW$student_cohort == "Coh:February 2024"),]
 	nrow(QRAW)	
 	###########
 	
@@ -31,7 +31,7 @@
 	QRAW$SNR <-  as.numeric(QRAW$SNR)
 	
 # import the datafile with supervisor info
-	SUIN <- read.xlsx("sep2023_supervisorinfo.xlsx", sheet = 1)
+	SUIN <- read.xlsx("feb2024_supervisorinfo.xlsx", sheet = 1)
 	head(SUIN)
 	
 # we need to get rid of students that signed up with HWS as they need to sign up for a circle by email
@@ -43,9 +43,10 @@
 	
 ### this is where manual fixes can be done if there are entries that are messing things up, you can also edit the data on qualtrics and export again
 
-	# the student on row 31 is a duplicate in this case, we look up the responseid (R_2qBH833O30RJqQ7) of this double entry and get rid of it.
+	# the student on row 62 is a duplicate in this case, we look up the responseid (R_2iP9BLwYB99a2S5) of this double entry and get rid of it.
 	nrow(QRAW)
-	QRAW <- QRAW[which(!QRAW$ResponseId == "R_2qBH833O30RJqQ7"),]
+	QRAW <- QRAW[which(!QRAW$ResponseId == "R_2iP9BLwYB99a2S5"),]
+	QRAW <- QRAW[which(!QRAW$ResponseId == "R_3gWoHtyh3VRWDdv"),] # 2nd submission suggesting student does an MTP resit?!
 	nrow(QRAW)	
 	
 ###
@@ -109,6 +110,14 @@
 
 	table(SPRF$extended_master)
 	
+	SPRF[which(SPRF$extended_master == "Yes, I applied for the extended master recently."),]
+	
+	# I know that Vieve Jaspers en Emma Roelse have been allowed into the extended master, but no info from Maaike Fukkink (R_7EX6k71Pp1JmilO) so I suggest we change her answer so she gets assigned a circle
+	SPRF$extended_master[which(SPRF$ResponseId == "R_7EX6k71Pp1JmilO")] <- "No, I did NOT apply for the extended master."
+	
+	table(SPRF$extended_master)
+	
+	
 # SPEM: we fork a dataframe here for Students in the Extended master, they get assigned as a '4th' student later.
 	
 	# make the ones that will be manually assigned (this will be dropped from Feb 2024 onward!)
@@ -126,12 +135,19 @@
 	}
 	nrow(SPRF)
 	
+## Get rid of all the people that where just worried about their MTP resits
+
+	table(SPRF$MTP_Resit)
+	nrow(SPRF)
+	SPRF <- SPRF[which(SPRF$MTP_Resit == "No, I am enrolling to start my Thesis for the first time"),]
+	nrow(SPRF)
+	
 # some setting stuff
 
 	totalnrstudents <- nrow(SPRF)
 	totalnrstudents
 	
-	totalnrsupervisors <- 9
+	totalnrsupervisors <- 6
 	totalnrsupervisors
 	
 	n_slots_per_supervisor <- 3
@@ -193,7 +209,8 @@
 	
 	# OK, some cleaning is required here!
 	
-	# for one case
+	# for one case (four cases now?) # I don't really understand what is happening here anymore.. (is this just a bit of code that should be removed?)
+		SPRF[which(SPRF$stud_supervis_prefer_0_1_RANK == ""),]
 		SPRF$stud_supervis_prefer_0_1_RANK[SPRF$stud_supervis_prefer_0_1_RANK == ""] <- "0"
 		SPRF$stud_supervis_prefer_0_1_RANK <- as.numeric(SPRF$stud_supervis_prefer_0_1_RANK)
 
@@ -228,7 +245,7 @@
 			n_supervisors <- totalnrsupervisors
 		
 		# also, if some supervisors are allowed to have more than 3 students, specify this here! Otherwise set all to 3.
-			n_slots_per_supervisor_vec <- c(3, 3, 3, 3, 3, 6, 4, 3, 3) # as long as n_supervisors
+			n_slots_per_supervisor_vec <- c(3, 2, 2, 2, 3, 0) # as long as n_supervisors
 			sum(n_slots_per_supervisor_vec)
 			nrow(SPRF)
 			rbind(n_slots_per_supervisor_vec,LETTERS[1:totalnrsupervisors])
@@ -274,7 +291,6 @@
 		# and if you are an extended master student currently doing an intership: double the pain!
 		indexvecofexmastu <- which(SPRF$extended_master == "Yes, I applied for the extended master roughly half a year ago and am currently doing an internship.")
 		actweights[indexvecofexmastu,] <- actweights[indexvecofexmastu,] * 2
-		
 		
 		# Create the model
 		
@@ -324,28 +340,28 @@
 		sum(colSums(assignment_matrix))
 		
 	# manual assignment of extended master students
-		SPEM <- subset(SPEM, select=c("full_name","email","SNR","what_master_track","extended_master","student_explanation"))
-		
-		names(SPEM)
-		SPEM
-
-		SPEM$my_assigned_supervisor <- NA
-		
-		SPEM$my_assigned_supervisor[which(SPEM$email == "R.j.barzegar@tilburguniversity.edu")] <- "C"
-		SPEM$my_assigned_supervisor[which(SPEM$email == "g.g.greco@tilburguniversity.edu")] <- "E"
-		SPEM$my_assigned_supervisor[which(SPEM$email == "r.s.p.hurl@tilburguniversity.edu")] <- "G"
-		SPEM$my_assigned_supervisor[which(SPEM$email == "j.m.vdrMeer_1@tilburguniversity.edu")] <- "I"
-		SPEM$my_assigned_supervisor[which(SPEM$email == "w.b.p.kwint@tilburguniversity.edu")] <- "B"
-		SPEM$my_assigned_supervisor[which(SPEM$email == "t.j.p.vanaert@tilburguniversity.edu")] <- "A"
+	#	SPEM <- subset(SPEM, select=c("full_name","email","SNR","what_master_track","extended_master","student_explanation"))
+	#	
+	#	names(SPEM)
+	#	SPEM
+	#
+	#	SPEM$my_assigned_supervisor <- NA
+	#	
+	#	SPEM$my_assigned_supervisor[which(SPEM$email == "R.j.barzegar@tilburguniversity.edu")] <- "C"
+	#	SPEM$my_assigned_supervisor[which(SPEM$email == "g.g.greco@tilburguniversity.edu")] <- "E"
+	#	SPEM$my_assigned_supervisor[which(SPEM$email == "r.s.p.hurl@tilburguniversity.edu")] <- "G"
+	#	SPEM$my_assigned_supervisor[which(SPEM$email == "j.m.vdrMeer_1@tilburguniversity.edu")] <- "I"
+	#	SPEM$my_assigned_supervisor[which(SPEM$email == "w.b.p.kwint@tilburguniversity.edu")] <- "B"
+	#	SPEM$my_assigned_supervisor[which(SPEM$email == "t.j.p.vanaert@tilburguniversity.edu")] <- "A"
 	
-		SPEM$how_painfull <- NA
+	#	SPEM$how_painfull <- NA
 
 	# now let's get a dataframe I can export where the unit of analysis is the student and we add the details of their assigned supervisor
 		head(SPRF)
 		names(SPRF)
 		
 		# first, lets select the relevant base variables
-        STEX <- subset(SPRF, select=c("full_name","email","SNR","what_master_track","extended_master","student_expl_1schoi"))
+        STEX <- subset(SPRF, select=c("full_name","email","SNR","what_master_track","extended_master","student_expl_1schoi","double_degree"))
 		
 		# what supervisor was assigned to each student
 		resvec <- NULL
@@ -368,12 +384,14 @@
 		
 		STEX$how_painfull <- resvec2
 		table(STEX$how_painfull)
-		
-		names(STEX) == names(SPEM) # should be all TRUE
 
-		EXPO <- rbind(STEX,SPEM)
-		nrow(STEX)+nrow(SPEM)
-		nrow(EXPO)
+		EXPO <- STEX
+		
+	#	names(STEX) == names(SPEM) # should be all TRUE
+
+	#	EXPO <- rbind(STEX,SPEM)
+	#	nrow(STEX)+nrow(SPEM)
+	#	nrow(EXPO)
 		
 		EXPO
 		
@@ -385,7 +403,7 @@
 		# adding sub columns that are needed for the thesis dossier import
 		
 		## make sure to set this one correctly manually!
-		EXPO$Category <- "EXPO$Coh:February 2024"
+		EXPO$Category <- "Coh:February 2024"
 		table(EXPO$Category)
 		
 		## getting the double degree categories all good
@@ -396,7 +414,6 @@
 		EXPO$Subcategory[which(EXPO$Subcategory == "Yes, I am doing the double-degree with Bamberg")] <- "double-degree with Bamberg"
 		
 		## and the assigned supervisor and subjects as they occur in thesisdossier
-		
 		EXPO <- sqldf("SELECT EXPO.*, SUIN.letter_in_sep2023surv, SUIN.ANR as 'supervisor_anr', SUIN.last_name as 'supervisor_last_name', SUIN.first_name as 'supervisor_first_name', SUIN.email as 'supervisor_email', SUIN.circle_description as 'Subject'
 					  FROM EXPO LEFT JOIN SUIN
 					  ON
