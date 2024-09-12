@@ -1,5 +1,5 @@
 # packages e.t.c.
-	# install.packages(c("ompr", "ompr.roi", "ROI.plugin.glpk","tidyverse"))
+	# install.packages(c("openxlsx","ompr", "ompr.roi", "ROI.plugin.glpk","tidyverse","sqldf"))
 	library(openxlsx)
 	library(ompr)
 	library(ompr.roi)
@@ -12,7 +12,7 @@
 	getwd()
 
 # import the datafile with supervisor preferences
-	QRAW <- read.xlsx("qualtrics_export_20240216.xlsx", sheet = 1) # QRAW <- read.xlsx("qualtrics_export_20230918.xlsx", sheet = 1)
+	QRAW <- read.xlsx("qualtrics_export_20240912.xlsx", sheet = 1) # QRAW <- read.xlsx("qualtrics_export_20230918.xlsx", sheet = 1)
 	head(QRAW)
 	
 	# filter 
@@ -23,7 +23,8 @@
 	########### SELECT THE RELEVANT COHORT HERE
 	nrow(QRAW)
 #	QRAW <- QRAW[which(QRAW$student_cohort == "coh_sep-2023"),]
-	QRAW <- QRAW[which(QRAW$student_cohort == "Coh:February 2024"),]
+#	QRAW <- QRAW[which(QRAW$student_cohort == "Coh:February 2024"),]
+	QRAW <- QRAW[which(QRAW$student_cohort == "Coh:September 2024"),]
 	nrow(QRAW)	
 	###########
 	
@@ -31,8 +32,9 @@
 	QRAW$SNR <-  as.numeric(QRAW$SNR)
 	
 # import the datafile with supervisor info
-	SUIN <- read.xlsx("feb2024_supervisorinfo.xlsx", sheet = 1)
+	SUIN <- read.xlsx("sep2024_supervisorinfo.xlsx", sheet = 1)
 	head(SUIN)
+	nrow(SUIN)
 	
 # we need to get rid of students that signed up with HWS as they need to sign up for a circle by email
 
@@ -45,8 +47,8 @@
 
 	# the student on row 62 is a duplicate in this case, we look up the responseid (R_2iP9BLwYB99a2S5) of this double entry and get rid of it.
 	nrow(QRAW)
-	QRAW <- QRAW[which(!QRAW$ResponseId == "R_2iP9BLwYB99a2S5"),]
-	QRAW <- QRAW[which(!QRAW$ResponseId == "R_3gWoHtyh3VRWDdv"),] # 2nd submission suggesting student does an MTP resit?!
+#	QRAW <- QRAW[which(!QRAW$ResponseId == "R_2iP9BLwYB99a2S5"),]
+#	QRAW <- QRAW[which(!QRAW$ResponseId == "R_3gWoHtyh3VRWDdv"),] # 2nd submission suggesting student does an MTP resit?!
 	nrow(QRAW)	
 	
 ###
@@ -85,7 +87,7 @@
 		noduplicates_full_name(QRAW)
 		QRAW[which(duplicated(QRAW$full_name)),]# return them if they are there
 	
-# CHECK did all students sign for a circle? - if one or more students did not (and did not do an attempt later where they did)
+# CHECK did all students sign-up for a circle? - if one or more students did not (and did not do an attempt later where they did)
 # these students NEED TO BE CONTACTED BY EMAIL FIRST BEFORE YOU CONTINUE
 	
 		allstudentssignedup <- function(DF) {
@@ -112,11 +114,7 @@
 	
 	SPRF[which(SPRF$extended_master == "Yes, I applied for the extended master recently."),]
 	
-	# I know that Vieve Jaspers en Emma Roelse have been allowed into the extended master, but no info from Maaike Fukkink (R_7EX6k71Pp1JmilO) so I suggest we change her answer so she gets assigned a circle
-	SPRF$extended_master[which(SPRF$ResponseId == "R_7EX6k71Pp1JmilO")] <- "No, I did NOT apply for the extended master."
-	
 	table(SPRF$extended_master)
-	
 	
 # SPEM: we fork a dataframe here for Students in the Extended master, they get assigned as a '4th' student later.
 	
@@ -127,6 +125,15 @@
 	# and filter the remaining
 	SPRF <- SPRF[which(!SPRF$extended_master == "Yes, I applied for the extended master recently."),] # these people will 95% sure all be accepted and won't be assigned a thesis circle
 	nrow(SPRF)
+	
+	# text for Other
+	OTH <- SPRF[which(SPRF$extended_master == "Other (please specify)."),]
+	OTH$Extended.master?_4_TEXT
+	OTH$full_name
+	OTH$email
+	
+	# lets assume for now she will join
+	SPRF$extended_master[which(SPRF$ResponseId == "R_2vSersf12bYNsGt")] <- "No, I did NOT apply for the extended master."
 	
 	## if any Other, break stuf!
 	if("Other (please specify)." %in% names(table(SPRF$extended_master)))
@@ -147,10 +154,10 @@
 	totalnrstudents <- nrow(SPRF)
 	totalnrstudents
 	
-	totalnrsupervisors <- 6
+	totalnrsupervisors <- nrow(SUIN) #6
 	totalnrsupervisors
 	
-	n_slots_per_supervisor <- 3
+	n_slots_per_supervisor <- 4
 	n_slots_per_supervisor
 	
 # OK, lets get some descriptives first
@@ -208,16 +215,13 @@
 	table(SPRF$stud_supervis_prefer_3_9_RANK) 
 	
 	# OK, some cleaning is required here!
-	
-	# for one case (four cases now?) # I don't really understand what is happening here anymore.. (is this just a bit of code that should be removed?)
-		SPRF[which(SPRF$stud_supervis_prefer_0_1_RANK == ""),]
-		SPRF$stud_supervis_prefer_0_1_RANK[SPRF$stud_supervis_prefer_0_1_RANK == ""] <- "0"
-		SPRF$stud_supervis_prefer_0_1_RANK <- as.numeric(SPRF$stud_supervis_prefer_0_1_RANK)
 
 	# and for all the cases in a loop
 		# Define the preference numbers and ranks
 			pref_nums <- c("0", "1", "2", "3")
-			ranks <- c("1", "2", "3", "4", "5", "6", "7", "8", "9")
+			
+			# ranks <- c("1", "2", "3", "4", "5", "6", "7", "8", "9")
+			ranks <- as.character(seq(1, 15)) # why 15, when there are 12 supervisor options? -- older supervisors that got removed? ## Right, so yes, futher below it becomes apparent that this is a real issue.
 
 			# Loop through each combination of preference number and rank
 			for (pref_num in pref_nums) {
@@ -238,28 +242,31 @@
 
 # OK, now for interesting part, how to go about and do this.
 
-	# latest chatGTP suggestion
-
 		# Define the number of students, supervisors and their preferences
 			n_students <- totalnrstudents
 			n_supervisors <- totalnrsupervisors
 		
-		# also, if some supervisors are allowed to have more than 3 students, specify this here! Otherwise set all to 3.
-			n_slots_per_supervisor_vec <- c(3, 2, 2, 2, 3, 0) # as long as n_supervisors
-			sum(n_slots_per_supervisor_vec)
-			nrow(SPRF)
-			rbind(n_slots_per_supervisor_vec,LETTERS[1:totalnrsupervisors])
+		# also, if some supervisors are allowed to have more than 3 students, specify this here! Otherwise set all to 4.
+			n_slots_per_supervisor_vec <- rep(4, length.out = nrow(SUIN))
+			length(n_slots_per_supervisor_vec)
+			
+			# n_slots_per_supervisor_vec <- c(4, 4, 4, 4, 4, 4) # manuel version, needs to as long as n_supervisors
+		
+			# some inspections, do we have enough
+				sum(n_slots_per_supervisor_vec)
+				nrow(SPRF)
+				rbind(n_slots_per_supervisor_vec,LETTERS[1:totalnrsupervisors])
 
 	# allright, now lets put this in a function where the input is: n_students, n_supervisors and n_slots_per_supervisor_vec and the output is the assignment_matrix for this group
 
 		# Let's say weights are from 4 to 1 for choices from 1st to 4th.
 		# This should actually come from your dataset
 		
-			# generated weights
-			weights <- matrix(runif(n_students * n_supervisors, 1, 4), nrow = n_students)
-			colnames(weights) <- LETTERS[1:totalnrsupervisors]
-			rownames(weights) <- 1:totalnrstudents
-			weights
+			# generated weights <-- this can be removed!
+				weights <- matrix(runif(n_students * n_supervisors, 1, 4), nrow = n_students)
+				colnames(weights) <- LETTERS[1:totalnrsupervisors]
+				rownames(weights) <- 1:totalnrstudents
+				weights
 			
 			# actual weights
 			actweights <- matrix(0, nrow = n_students, ncol = n_supervisors)
@@ -291,6 +298,11 @@
 		# and if you are an extended master student currently doing an intership: double the pain!
 		indexvecofexmastu <- which(SPRF$extended_master == "Yes, I applied for the extended master roughly half a year ago and am currently doing an internship.")
 		actweights[indexvecofexmastu,] <- actweights[indexvecofexmastu,] * 2
+		
+		# show for CHECK
+		showforcheck <- actweights
+		colnames(showforcheck) <- c(SUIN$circle_description) ## NOPE, something is not OK here. Bram gets score 6, but should be 2 for the first student in this group -- double preferences are not taken into account well?
+		showforcheck										  # I think the issue is this going up to 15 issue, because of new supervisors the last supervisor is in var 15 now, not 12....
 		
 		# Create the model
 		
