@@ -427,52 +427,7 @@
 				DFSU$assigned_supervisor <- as.character(DFSU$assigned_supervisor)
 				DFSU
 
-# now randomly assign the 2nd reader
-		
-			# lets set the seed using the cohort as the input, so that the random selection is the same when we run the script, but different between cohorts.
-				# Use digest to create a hash and convert it to a number for set.seed (so, first make a hexadecimal, then convert to a numeric value)
-				hashed_value <- strtoi(digest(currentcohort, algo="crc32"),base=16) 
-
-				# Set the seed
-				set.seed(hashed_value)
-				
-			# Randomly shuffle the rows of SECR
-				SECR <- SECR[sample(nrow(SECR)),]
-				
-			# And now just select the top 8
-				DFSU$random2ndreader_ANR <- SECR$ANR[1:nrow(DFSU)]
-				DFSU$random2ndreader_last_name <- SECR$last_name[1:nrow(DFSU)]
-				DFSU$random2ndreader_first_name <- SECR$first_name[1:nrow(DFSU)]
-				DFSU$random2ndreader_email <- SECR$email[1:nrow(DFSU)]
-			
-			DFSU
-		
-		# and merge the result into EXPO
-		nrow(EXPO)
-			EXPO <- sqldf("SELECT EXPO.*, DFSU.*
-                    FROM EXPO
-                    LEFT JOIN DFSU
-                    ON EXPO.my_assigned_supervisor = DFSU.assigned_supervisor")
-		nrow(EXPO)
-		EXPO
-		
-		# now, remove this assignment for students that are doing a double degree
-		EXPO$random2ndreader_ANR[which(grepl("Yes, I am doing the double-degree",EXPO$double_degree, fixed=TRUE))] <- NA
-		EXPO$random2ndreader_last_name[which(grepl("Yes, I am doing the double-degree",EXPO$double_degree, fixed=TRUE))] <- NA
-		EXPO$random2ndreader_first_name[which(grepl("Yes, I am doing the double-degree",EXPO$double_degree, fixed=TRUE))] <- NA
-		EXPO$random2ndreader_email[which(grepl("Yes, I am doing the double-degree",EXPO$double_degree, fixed=TRUE))] <- NA
-		
-		EXPO
-		
-	#	names(STEX) == names(SPEM) # should be all TRUE
-
-	#	EXPO <- rbind(STEX,SPEM)
-	#	nrow(STEX)+nrow(SPEM)
-	#	nrow(EXPO)
-		
-		EXPO
-		
-		# now, lets merge in some info on the supervisors
+# now, lets merge in some info on the supervisors
 		nrow(EXPO)
 		names(EXPO)
 		head(EXPO)
@@ -502,19 +457,55 @@
 		# order by EXPO$my_assigned_supervisor
 		EXPO <- EXPO[order(EXPO$my_assigned_supervisor), ]
 		EXPO
+	
+# now randomly assign the 2nd reader
 		
-		# export
-		
-			# Get the current date and time
-			current_time <- Sys.time()
-		
-			# Format it into a string suitable for a file name
-			time_str <- format(current_time, "%Y%m%d_%H%M%S")
+			# lets set the seed using the cohort as the input, so that the random selection is the same when we run the script, but different between cohorts.
+				# Use digest to create a hash and convert it to a number for set.seed (so, first make a hexadecimal, then convert to a numeric value)
+				hashed_value <- strtoi(digest(currentcohort, algo="crc32"),base=16) 
 
-			# EXPORT THE COMPLETE FILE
-				# Create a file name with the timestamp
-				file_name <- paste0("suggested_student-to-supervisor_assignments_", time_str, ".xlsx")
-				write.xlsx(EXPO, file_name)
+				# Set the seed
+				set.seed(hashed_value+3)
+				
+			# Randomly shuffle the rows of SECR
+				SECR <- SECR[sample(nrow(SECR)),]
+				
+			# And now just select the top 8
+				DFSU$random2ndreader_ANR <- SECR$ANR[1:nrow(DFSU)]
+				DFSU$random2ndreader_last_name <- SECR$last_name[1:nrow(DFSU)]
+				DFSU$random2ndreader_first_name <- SECR$first_name[1:nrow(DFSU)]
+				DFSU$random2ndreader_email <- SECR$email[1:nrow(DFSU)]
+			
+			DFSU
+		
+		# and merge the result into EXPO
+		nrow(EXPO)
+			EXPO <- sqldf("SELECT EXPO.*, DFSU.*
+                    FROM EXPO
+                    LEFT JOIN DFSU
+                    ON EXPO.my_assigned_supervisor = DFSU.assigned_supervisor")
+		nrow(EXPO)
+		EXPO
+		
+		# now, remove this assignment for students that are doing a double degree
+		EXPO$random2ndreader_ANR[which(grepl("Yes, I am doing the double-degree",EXPO$double_degree, fixed=TRUE))] <- NA
+		EXPO$random2ndreader_last_name[which(grepl("Yes, I am doing the double-degree",EXPO$double_degree, fixed=TRUE))] <- NA
+		EXPO$random2ndreader_first_name[which(grepl("Yes, I am doing the double-degree",EXPO$double_degree, fixed=TRUE))] <- NA
+		EXPO$random2ndreader_email[which(grepl("Yes, I am doing the double-degree",EXPO$double_degree, fixed=TRUE))] <- NA
+		
+		EXPO
+	
+# EXPORT THE COMPLETE FILE
+
+	# Get the current date and time
+	current_time <- Sys.time()
+		
+	# Format it into a string suitable for a file name
+	time_str <- format(current_time, "%Y%m%d_%H%M%S")
+
+	# Create a file name with the timestamp
+	file_name <- paste0("suggested_student-to-supervisor_assignments_", time_str, ".xlsx")
+	write.xlsx(EXPO, file_name)
 				
 			# PLEASE NOTE: THIS PART ALWAYS NEEDS TO BE RUN MANUALLY 
 			#
@@ -564,9 +555,11 @@
 				MIRS$coursecodes <- ifelse(grepl("PPSinCP", MIRS$what_master_track), PPSinCP_coursecode, MIRS$coursecodes)
 				table(MIRS$coursecodes)
 				nrow(MIRS) == sum(table(MIRS$coursecodes)) # should return TRUE
+				
+				head(MIRS)
 		
 				# export PPSD
-					EXPO_PPSD <- sqldf(paste0("SELECT MIRS.SNR, MIRS.supervisor_anr as 'ANR', MIRS.Category, MIRS.Subcategory, MIRS.Subject FROM MIRS WHERE coursecodes = '",PPSD_coursecode,"'"))
+					EXPO_PPSD <- sqldf(paste0("SELECT MIRS.SNR, MIRS.supervisor_anr as 'ANR_supervisor',MIRS.random2ndreader_ANR as 'ANR_second-assessor', MIRS.Category, MIRS.Subcategory, MIRS.Subject FROM MIRS WHERE coursecodes = '",PPSD_coursecode,"'"))
 					nrow(EXPO_PPSD)
 					EXPO_PPSD
 					
@@ -574,7 +567,7 @@
 					write.xlsx(EXPO_PPSD, file_name2)
 
 				# export PPSinCP
-					EXPO_PPSinCP <- sqldf(paste0("SELECT MIRS.SNR, MIRS.supervisor_anr as 'ANR', MIRS.Category, MIRS.Subcategory, MIRS.Subject FROM MIRS WHERE coursecodes = '",PPSinCP_coursecode,"'"))
+					EXPO_PPSinCP <- sqldf(paste0("SELECT MIRS.SNR, MIRS.supervisor_anr as 'ANR_supervisor', MIRS.random2ndreader_ANR as 'ANR_second-assessor', MIRS.Category, MIRS.Subcategory, MIRS.Subject FROM MIRS WHERE coursecodes = '",PPSinCP_coursecode,"'"))
 					nrow(EXPO_PPSinCP)
 					EXPO_PPSinCP
 					
