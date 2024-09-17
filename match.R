@@ -12,7 +12,7 @@
 	getwd()
 
 # import the datafile with supervisor preferences
-	QRAW <- read.xlsx("qualtrics_export_20240912.xlsx", sheet = 1) # QRAW <- read.xlsx("qualtrics_export_20230918.xlsx", sheet = 1)
+	QRAW <- read.xlsx("qualtrics_export_20240916.xlsx", sheet = 1) # QRAW <- read.xlsx("qualtrics_export_20230918.xlsx", sheet = 1)
 	head(QRAW)
 	
 	# filter 
@@ -47,7 +47,9 @@
 
 	# the student on row 62 is a duplicate in this case, we look up the responseid (R_2iP9BLwYB99a2S5) of this double entry and get rid of it.
 	nrow(QRAW)
-#	QRAW <- QRAW[which(!QRAW$ResponseId == "R_2iP9BLwYB99a2S5"),]
+	
+	# Kirsten Veerle, does want to do her thesis this semester
+	QRAW <- QRAW[which(!QRAW$ResponseId == "R_8ISLBKEbMfLhjik"),]
 #	QRAW <- QRAW[which(!QRAW$ResponseId == "R_3gWoHtyh3VRWDdv"),] # 2nd submission suggesting student does an MTP resit?!
 	nrow(QRAW)	
 	
@@ -86,8 +88,50 @@
 		}
 		noduplicates_full_name(QRAW)
 		QRAW[which(duplicated(QRAW$full_name)),]# return them if they are there
+
+# get rid of these that have been accepted into the extended master
+	# how many Extended master
+		names(QRAW)[which(names(QRAW) == "Extended.master?")] <- "extended_master"
+
+		table(QRAW$extended_master)
+		
+		
+		
+		table(QRAW$extended_master)
+		
+		# for my overview
+		
+			# student that started the extended master half a year ago
+			QRAW[which(QRAW$extended_master == "Yes, I applied for the extended master roughly half a year ago and am currently doing an internship."),]
+			
+			# students that recently got accepted into the extended Master
+			QRAW[which(QRAW$extended_master == "Yes, I applied for the extended master recently."),]
+			
+			Yes, I applied for the extended master recently.
+		
+		# and filter the remaining
+		nrow(QRAW)
+		QRAW <- QRAW[which(!QRAW$extended_master == "Yes, I applied for the extended master recently."),] # these people will 95% sure all be accepted and won't be assigned a thesis circle
+		nrow(QRAW)
+		
+		# text for Other
+		OTH <- QRAW[which(QRAW$extended_master == "Other (please specify)."),]
+		nrow(OTH)
+		OTH$Extended.master?_4_TEXT
+		OTH$full_name
+		OTH$email
+		
+		# this student came up, see email conversation with Christof, lets assume for now she will join
+		QRAW$extended_master[which(QRAW$ResponseId == "R_2vSersf12bYNsGt")] <- "No, I did NOT apply for the extended master."
+		
+		## if any Other, break stuf!
+		if("Other (please specify)." %in% names(table(QRAW$extended_master)))
+		{
+			QRAW <- NA
+		}
+		nrow(QRAW)
 	
-# CHECK did all students sign-up for a circle? - if one or more students did not (and did not do an attempt later where they did)
+# CHECK did all the remaining students sign-up for a circle? - if one or more students did not (and did not do an attempt later where they did)
 # these students NEED TO BE CONTACTED BY EMAIL FIRST BEFORE YOU CONTINUE
 	
 		allstudentssignedup <- function(DF) {
@@ -101,44 +145,9 @@
 		QRAW[which(QRAW$stud_supervis_prefer_0_GROUP == "" | is.na(QRAW$stud_supervis_prefer_0_GROUP)),] # return the problematic cases, if any
 	
 	# ONLY if all checks pass, the script can continue
-	if(noduplicates_SNR(QRAW) & noduplicates_email(QRAW) & noduplicates_full_name(QRAW))
+	if(noduplicates_SNR(QRAW) & noduplicates_email(QRAW) & noduplicates_full_name(QRAW) & allstudentssignedup(QRAW))
 	{
 	SPRF <- QRAW
-	}
-	nrow(SPRF)
-
-# how many Extended master
-	names(SPRF)[which(names(SPRF) == "Extended.master?")] <- "extended_master"
-
-	table(SPRF$extended_master)
-	
-	SPRF[which(SPRF$extended_master == "Yes, I applied for the extended master recently."),]
-	
-	table(SPRF$extended_master)
-	
-# SPEM: we fork a dataframe here for Students in the Extended master, they get assigned as a '4th' student later.
-	
-	# make the ones that will be manually assigned (this will be dropped from Feb 2024 onward!)
-#	SPEM <- SPRF[which(SPRF$extended_master == "I am seriously considering applying for the extended master, or I have already applied."),]
-#	nrow(SPEM)
-	
-	# and filter the remaining
-	SPRF <- SPRF[which(!SPRF$extended_master == "Yes, I applied for the extended master recently."),] # these people will 95% sure all be accepted and won't be assigned a thesis circle
-	nrow(SPRF)
-	
-	# text for Other
-	OTH <- SPRF[which(SPRF$extended_master == "Other (please specify)."),]
-	OTH$Extended.master?_4_TEXT
-	OTH$full_name
-	OTH$email
-	
-	# lets assume for now she will join
-	SPRF$extended_master[which(SPRF$ResponseId == "R_2vSersf12bYNsGt")] <- "No, I did NOT apply for the extended master."
-	
-	## if any Other, break stuf!
-	if("Other (please specify)." %in% names(table(SPRF$extended_master)))
-	{
-		SPRF <- NA
 	}
 	nrow(SPRF)
 	
@@ -160,86 +169,6 @@
 	n_slots_per_supervisor <- 4
 	n_slots_per_supervisor
 	
-# OK, lets get some descriptives first
-
-	# per supervisor, distribution of the rankings
-		# from the qualtrics documentation: https://www.qualtrics.com/support/survey-platform/survey-module/editing-questions/question-types-guide/specialty-questions/pick-group-and-rank/
-			# The downloaded dataset will include 2 columns for each item participants were asked to group
-			# The first column will indicate which group the participant placed the item in (labeled numerically, with “0” being the first group, “1” being the second, and so forth).
-			# The second column will indicate what rank this item received within the group it was placed in.
-		# CONCLUSION: we only need the first column!
-		
-	
-	# overview of first choices per supervisor
-	table(SPRF$stud_supervis_prefer_0_1_RANK) 
-	table(SPRF$stud_supervis_prefer_0_2_RANK) 
-	table(SPRF$stud_supervis_prefer_0_3_RANK) 
-	table(SPRF$stud_supervis_prefer_0_4_RANK) 
-	table(SPRF$stud_supervis_prefer_0_5_RANK) 
-	table(SPRF$stud_supervis_prefer_0_6_RANK) 
-	table(SPRF$stud_supervis_prefer_0_7_RANK) 
-	table(SPRF$stud_supervis_prefer_0_8_RANK) 
-	table(SPRF$stud_supervis_prefer_0_9_RANK) 
-	
-	# overview of 2nd choices per supervisor
-	table(SPRF$stud_supervis_prefer_1_1_RANK) 
-	table(SPRF$stud_supervis_prefer_1_2_RANK) 
-	table(SPRF$stud_supervis_prefer_1_3_RANK) 
-	table(SPRF$stud_supervis_prefer_1_4_RANK) 
-	table(SPRF$stud_supervis_prefer_1_5_RANK) 
-	table(SPRF$stud_supervis_prefer_1_6_RANK) 
-	table(SPRF$stud_supervis_prefer_1_7_RANK) 
-	table(SPRF$stud_supervis_prefer_1_8_RANK) 
-	table(SPRF$stud_supervis_prefer_1_9_RANK) 
-	
-	# overview of 3th choices per supervisor
-	table(SPRF$stud_supervis_prefer_2_1_RANK) 
-	table(SPRF$stud_supervis_prefer_2_2_RANK) 
-	table(SPRF$stud_supervis_prefer_2_3_RANK) 
-	table(SPRF$stud_supervis_prefer_2_4_RANK) 
-	table(SPRF$stud_supervis_prefer_2_5_RANK) 
-	table(SPRF$stud_supervis_prefer_2_6_RANK) 
-	table(SPRF$stud_supervis_prefer_2_7_RANK) 
-	table(SPRF$stud_supervis_prefer_2_8_RANK) 
-	table(SPRF$stud_supervis_prefer_2_9_RANK) 
-	
-	# overview of 4th choices per supervisor
-	table(SPRF$stud_supervis_prefer_3_1_RANK) 
-	table(SPRF$stud_supervis_prefer_3_2_RANK) 
-	table(SPRF$stud_supervis_prefer_3_3_RANK) 
-	table(SPRF$stud_supervis_prefer_3_4_RANK) 
-	table(SPRF$stud_supervis_prefer_3_5_RANK) 
-	table(SPRF$stud_supervis_prefer_3_6_RANK) 
-	table(SPRF$stud_supervis_prefer_3_7_RANK) 
-	table(SPRF$stud_supervis_prefer_3_8_RANK) 
-	table(SPRF$stud_supervis_prefer_3_9_RANK) 
-	
-	# OK, some cleaning is required here!
-
-	# and for all the cases in a loop
-		# Define the preference numbers and ranks
-			pref_nums <- c("0", "1", "2", "3")
-			
-			# ranks <- c("1", "2", "3", "4", "5", "6", "7", "8", "9")
-			ranks <- as.character(seq(1, 15)) # why 15, when there are 12 supervisor options? -- older supervisors that got removed? ## Right, so yes, futher below it becomes apparent that this is a real issue.
-
-			# Loop through each combination of preference number and rank
-			for (pref_num in pref_nums) {
-			  for (rank in ranks) {
-				# Construct the column name
-				col_name <- paste("stud_supervis_prefer_", pref_num, "_", rank, "_RANK", sep = "")
-				
-				# Replace empty strings with "0"
-				SPRF[[col_name]][SPRF[[col_name]] == ""] <- "0"
-				
-				# Convert to numeric
-				SPRF[[col_name]] <- as.numeric(SPRF[[col_name]])
-				
-				# Optionally, you could also print the table for each column like you were doing before
-				print(table(SPRF[[col_name]]))
-			  }
-			}
-
 # OK, now for interesting part, how to go about and do this.
 
 		# Define the number of students, supervisors and their preferences
@@ -250,23 +179,24 @@
 			n_slots_per_supervisor_vec <- rep(4, length.out = nrow(SUIN))
 			length(n_slots_per_supervisor_vec)
 			
-			# n_slots_per_supervisor_vec <- c(4, 4, 4, 4, 4, 4) # manuel version, needs to as long as n_supervisors
+			n_slots_per_supervisor_vec <- c(3, 4, 4, 4, 4, 3, 4, 4, 0, 0, 0, 0) # manual version, needs to as long as n_supervisors
+			length(n_slots_per_supervisor_vec)
+			
+			# some info here on what are (im)polpular supervisors - note: only work after actweights has been generated below (lower values indicated more popular)
+				# note for next year, is one supervisor keeps on getting only few students, the optimal way to 'force' student onto that supervisor is by giving the relatively impopular supervisors less students in the list above.
+			rbind(n_slots_per_supervisor_vec,LETTERS[1:totalnrsupervisors],unname(colSums(actweights)))
 		
-			# some inspections, do we have enough
-				sum(n_slots_per_supervisor_vec)
-				nrow(SPRF)
-				rbind(n_slots_per_supervisor_vec,LETTERS[1:totalnrsupervisors])
-
+			# some inspections, do we have enough supervisors?
+				# enough? - should return TRUE
+				sum(n_slots_per_supervisor_vec) > nrow(SPRF)
+				
+				# how many supervisors do we minimally need? - be sure to round up
+				ceiling(nrow(SPRF) / n_slots_per_supervisor)
+				
 	# allright, now lets put this in a function where the input is: n_students, n_supervisors and n_slots_per_supervisor_vec and the output is the assignment_matrix for this group
 
 		# Let's say weights are from 4 to 1 for choices from 1st to 4th.
 		# This should actually come from your dataset
-		
-			# generated weights <-- this can be removed!
-				weights <- matrix(runif(n_students * n_supervisors, 1, 4), nrow = n_students)
-				colnames(weights) <- LETTERS[1:totalnrsupervisors]
-				rownames(weights) <- 1:totalnrstudents
-				weights
 			
 			# actual weights
 			actweights <- matrix(0, nrow = n_students, ncol = n_supervisors)
@@ -275,35 +205,79 @@
 			actweights[,] <- 6
 			
 			# now let's make some a loop that writes in the actual values
-			for(i in 1:totalnrsupervisors)	
-				{
-				# when they are the 1st choice
-				col_name_0 <- paste("stud_supervis_prefer_0_",i,"_RANK", sep = "") # for we dynmically define the name of the variable the info should come from
-				actweights[which(SPRF[[col_name_0]] > 0),i] <- 0 # we get a vector with the index of all rows that need to be updated and write this to the supervisor specific column
 			
-				# when they are the 2nd choice
-				col_name_1 <- paste("stud_supervis_prefer_1_",i,"_RANK", sep = "")
-				actweights[which(SPRF[[col_name_1]] > 0),i] <- 2
+			# NEW - do this with the circle desciptions in the column names? 
+			
+				# I can take these from SUIN
+				colnames(actweights) <- c(SUIN$circle_description)
 				
-				# when they are the 3th choice
-				col_name_2 <- paste("stud_supervis_prefer_2_",i,"_RANK", sep = "")
-				actweights[which(SPRF[[col_name_2]] > 0),i] <- 3
+				# and lets make a dataframe with just the four columns that contain the given student preferences as text from SPRF
+				PREF <- cbind(SPRF$stud_supervis_prefer_0_GROUP,SPRF$stud_supervis_prefer_1_GROUP,SPRF$stud_supervis_prefer_2_GROUP,SPRF$stud_supervis_prefer_3_GROUP)
+				head(PREF)
+			
+					# OK, I can take these from SUIN, but they do really need to match exactly with the one used in the survey, so lets check
+						# how often as a first choice
+						a <- colnames(actweights) %in% names(table(PREF[,1]))
+						b <- colnames(actweights) %in% names(table(PREF[,2]))
+						c <- colnames(actweights) %in% names(table(PREF[,3]))
+						d <- colnames(actweights) %in% names(table(PREF[,4]))
+						
+						CHECK <- rbind(a,b,c,d)
+						colnames(CHECK) <- colnames(actweights)
+						CHECK # OK, so all but Katya occur once, that one was indeed incorrect
+						
+						
+						# if not each column in CHECK contains at least one TRUE, break the script!
+						if (!all(apply(CHECK, 2, any)))
+						{
+							SPRF <- NULL
+						}
+
+			# for each row, check if this student mentioned the columnname, which is the supervisor as their preference and update the costs accordingly
+			
+				# rowloop
+				for(i in 1:nrow(actweights))
+					{
+					# columnloop
+					for(j in 1:ncol(actweights))	
+						{
+						# here, we use the supervisor specific values from colnames(actweights) and check if they occur as substring for the specific student row
+						
+						# when they are the 1st choice
+						actweights[i,j] <- ifelse(grepl(colnames(actweights)[j],SPRF$stud_supervis_prefer_0_GROUP[i],fixed=TRUE),0,actweights[i,j])
+						
+						# when they are the 2nd choice
+						actweights[i,j] <- ifelse(grepl(colnames(actweights)[j],SPRF$stud_supervis_prefer_1_GROUP[i],fixed=TRUE),2,actweights[i,j])
+						
+						# when they are the 3th choice
+						actweights[i,j] <- ifelse(grepl(colnames(actweights)[j],SPRF$stud_supervis_prefer_2_GROUP[i],fixed=TRUE),3,actweights[i,j])
+						
+						# when they are the 4th choice
+						actweights[i,j] <- ifelse(grepl(colnames(actweights)[j],SPRF$stud_supervis_prefer_3_GROUP[i],fixed=TRUE),4,actweights[i,j])
+						}
+					}
+				actweights
 				
-				# when they are the 4th choice
-				col_name_3 <- paste("stud_supervis_prefer_3_",i,"_RANK", sep = "")
-				actweights[which(SPRF[[col_name_3]] > 0),i] <- 4
-				print(i)
-				}
+	# OK, so I really don't want Ivar Staps bij Suzanne (method mismatch), dus ik ga dat weight omhoog zetten.
+	
+		# right person?
+			SPRF$full_name[11]
+			colnames(actweights)[1]
 		
-		# and if you are an extended master student currently doing an intership: double the pain!
+		# yes, so lets set ## I did this different, I just switched his choice 3 and 4 in the qualtrics export file.
+			# actweights[11,1] <- actweights[11,1]*2
+			
+	# and if you are an extended master student currently doing an intership: double the pain!
 		indexvecofexmastu <- which(SPRF$extended_master == "Yes, I applied for the extended master roughly half a year ago and am currently doing an internship.")
 		actweights[indexvecofexmastu,] <- actweights[indexvecofexmastu,] * 2
+	
+	# and if you would like to do a qualitative thesis, but the supervisor is quantitative or vice versa add pentalty 3 
+		# (which makes the algorithm in different between getting a supervisor that is your 3th choice or getting your first choice with a missmatch), which means that:
+			# - 2nd choice supervisor with match is preferd over first choice with mismatch
+			# - random supervisor (pain=6) with a method match is prefered over a 4th choice supervisor with a mismatch (pain=7), but not a lot.
 		
-		# show for CHECK
-		showforcheck <- actweights
-		colnames(showforcheck) <- c(SUIN$circle_description) ## NOPE, something is not OK here. Bram gets score 6, but should be 2 for the first student in this group -- double preferences are not taken into account well?
-		showforcheck										  # I think the issue is this going up to 15 issue, because of new supervisors the last supervisor is in var 15 now, not 12....
-		
+			## OK, so note that we did not yet actually ask students about this yet this year, so I cannot sort them on this yet. They will ofcourse have already self-sorted.
+	
 		# Create the model
 		
 			#  the MIP model is optimizing the assignment of students to supervisors in such a way that:
@@ -351,6 +325,13 @@
 		colSums(assignment_matrix)
 		sum(colSums(assignment_matrix))
 		
+	# pain and number of supervisors
+
+		# total pain for one solution
+		painmatrix <- assignment_matrix*actweights
+		painmatrix
+		sum(painmatrix)
+		
 	# manual assignment of extended master students
 	#	SPEM <- subset(SPEM, select=c("full_name","email","SNR","what_master_track","extended_master","student_explanation"))
 	#	
@@ -373,7 +354,12 @@
 		names(SPRF)
 		
 		# first, lets select the relevant base variables
-        STEX <- subset(SPRF, select=c("full_name","email","SNR","what_master_track","extended_master","student_expl_1schoi","double_degree"))
+        STEX <- subset(SPRF, select=c("full_name","email","SNR","what_master_track","extended_master","student_expl_1schoi","double_degree","selfeval_scores_5","selfeval_scores_6"))
+		
+		# give the quant and qual skills more informative labels
+		names(STEX)[names(STEX) == "selfeval_scores_5"] <- "selfeval_quant"
+		names(STEX)[names(STEX) == "selfeval_scores_6"] <- "selfeval_qual"
+		
 		
 		# what supervisor was assigned to each student
 		resvec <- NULL
@@ -395,9 +381,31 @@
 		length(resvec2)
 		
 		STEX$how_painfull <- resvec2
-		table(STEX$how_painfull)
+		table(STEX$how_painfull) ## OKI, there are 4 students that did not get any of their first choices.. what would happen if we add Bram. -- if we add Bram - and tweak the numbers per supervisor a bit, we get 
 
-		EXPO <- STEX
+		EXPO <- STEX 
+
+	# OK, and did Katya get some people that are OK with quant 
+
+		KATJ <- EXPO[which(EXPO$my_assigned_supervisor == "B"),]
+		table(KATJ$selfeval_quant) # quite good
+	
+	# and Nola and Suzanne people that are OK with qualitative
+	
+		SUSS <- EXPO[which(EXPO$my_assigned_supervisor == "A"),]
+		nrow(SUSS)
+		table(SUSS$selfeval_qual) # one really NOT very good. 
+		table(SUSS$selfeval_quant) # that student feels more comfortable with quant
+		SUSS
+	
+		NOLA <- EXPO[which(EXPO$my_assigned_supervisor == "F"),]
+		nrow(NOLA)
+		table(NOLA$selfeval_qual) # one really NOT very good. Student Maaike Fukkink should not be with Nola
+		table(NOLA$selfeval_quant) # that student feels more comfortable with quant
+		NOLA
+	
+	
+	
 		
 	#	names(STEX) == names(SPEM) # should be all TRUE
 
