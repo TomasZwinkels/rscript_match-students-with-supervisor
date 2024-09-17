@@ -1,11 +1,13 @@
 # packages e.t.c.
-	# install.packages(c("openxlsx","ompr", "ompr.roi", "ROI.plugin.glpk","tidyverse","sqldf"))
+	# install.packages(c("openxlsx","ompr", "ompr.roi", "ROI.plugin.glpk","tidyverse","sqldf","digest"))
 	library(openxlsx)
 	library(ompr)
 	library(ompr.roi)
 	library(ROI.plugin.glpk)
 	library(tidyverse)
 	library(sqldf)
+	library(digest)
+
 
 # set working directory
 	setwd("C:/Users/zwinkels/Dropbox/Tilburg Teaching/master thesis coordination/rscript_match-students-with-supervisor")
@@ -21,11 +23,11 @@
 	head(QRAW)
 	
 	########### SELECT THE RELEVANT COHORT HERE
-	nrow(QRAW)
-#	QRAW <- QRAW[which(QRAW$student_cohort == "coh_sep-2023"),]
-#	QRAW <- QRAW[which(QRAW$student_cohort == "Coh:February 2024"),]
-	QRAW <- QRAW[which(QRAW$student_cohort == "Coh:September 2024"),]
-	nrow(QRAW)	
+		currentcohort = "Coh:September 2024"
+		nrow(QRAW)
+		QRAW <- QRAW[which(QRAW$student_cohort == currentcohort),]
+		nrow(QRAW)
+	
 	###########
 	
 	# quick fix for later
@@ -404,8 +406,63 @@
 		table(NOLA$selfeval_quant) # that student feels more comfortable with quant
 		NOLA
 	
-	
-	
+	# now, lets also automatically assign the 2nd readers
+
+		# first of all, import a file with all the people available to be a 2nd reader
+			SECR <-	read.xlsx("sep2024_2ndreaderoptions.xlsx", sheet = 1)
+			head(SECR)
+			SECR
+			
+			SECR$letterinsurvey <- as.character(SECR$letterinsurvey)
+
+		# drop everbody that has any students assigned
+			nrow(SECR)
+			SECR <- SECR[which(!SECR$letterinsurvey %in% names(table(STEX$my_assigned_supervisor))),]
+			nrow(SECR) # different with last nrow should be number of supervisors assigned
+		
+		# make a new dataframe, that we can do the random matching in
+			# Create a dataframe with those names as a single variable
+				supervisor_names <- names(table(STEX$my_assigned_supervisor))
+				DFSU <- data.frame(assigned_supervisor = supervisor_names)
+				DFSU$assigned_supervisor <- as.character(DFSU$assigned_supervisor)
+				DFSU
+
+# now randomly assign the 2nd reader
+		
+			# lets set the seed using the cohort as the input, so that the random selection is the same when we run the script, but different between cohorts.
+				# Use digest to create a hash and convert it to a number for set.seed (so, first make a hexadecimal, then convert to a numeric value)
+				hashed_value <- strtoi(digest(currentcohort, algo="crc32"),base=16) 
+
+				# Set the seed
+				set.seed(hashed_value)
+				
+			# Randomly shuffle the rows of SECR
+				SECR <- SECR[sample(nrow(SECR)),]
+				
+			# And now just select the top 8
+				DFSU$random2ndreader_ANR <- SECR$ANR[1:nrow(DFSU)]
+				DFSU$random2ndreader_last_name <- SECR$last_name[1:nrow(DFSU)]
+				DFSU$random2ndreader_first_name <- SECR$first_name[1:nrow(DFSU)]
+				DFSU$random2ndreader_email <- SECR$email[1:nrow(DFSU)]
+			
+			DFSU
+		
+		# and merge the result into EXPO
+		nrow(EXPO)
+			EXPO <- sqldf("SELECT EXPO.*, DFSU.*
+                    FROM EXPO
+                    LEFT JOIN DFSU
+                    ON EXPO.my_assigned_supervisor = DFSU.assigned_supervisor")
+		nrow(EXPO)
+		EXPO
+		
+		# now, remove this assignment for students that are doing a double degree
+		EXPO$random2ndreader_ANR[which(grepl("Yes, I am doing the double-degree",EXPO$double_degree, fixed=TRUE))] <- NA
+		EXPO$random2ndreader_last_name[which(grepl("Yes, I am doing the double-degree",EXPO$double_degree, fixed=TRUE))] <- NA
+		EXPO$random2ndreader_first_name[which(grepl("Yes, I am doing the double-degree",EXPO$double_degree, fixed=TRUE))] <- NA
+		EXPO$random2ndreader_email[which(grepl("Yes, I am doing the double-degree",EXPO$double_degree, fixed=TRUE))] <- NA
+		
+		EXPO
 		
 	#	names(STEX) == names(SPEM) # should be all TRUE
 
@@ -434,10 +491,10 @@
 		EXPO$Subcategory[which(EXPO$Subcategory == "Yes, I am doing the double-degree with Bamberg")] <- "double-degree with Bamberg"
 		
 		## and the assigned supervisor and subjects as they occur in thesisdossier
-		EXPO <- sqldf("SELECT EXPO.*, SUIN.letter_in_sep2023surv, SUIN.ANR as 'supervisor_anr', SUIN.last_name as 'supervisor_last_name', SUIN.first_name as 'supervisor_first_name', SUIN.email as 'supervisor_email', SUIN.circle_description as 'Subject'
+		EXPO <- sqldf("SELECT EXPO.*, SUIN.letter_in_sep2024surv, SUIN.ANR as 'supervisor_anr', SUIN.last_name as 'supervisor_last_name', SUIN.first_name as 'supervisor_first_name', SUIN.email as 'supervisor_email', SUIN.circle_description as 'Subject'
 					  FROM EXPO LEFT JOIN SUIN
 					  ON
-					  EXPO.my_assigned_supervisor = SUIN.letter_in_sep2023surv
+					  EXPO.my_assigned_supervisor = SUIN.letter_in_sep2024surv
 					")
 		nrow(EXPO)
 		EXPO
