@@ -14,7 +14,7 @@
 	getwd()
 
 # import the datafile with supervisor preferences
-	QRAW <- read.xlsx("qualtrics_export_20240916.xlsx", sheet = 1) # QRAW <- read.xlsx("qualtrics_export_20230918.xlsx", sheet = 1)
+	QRAW <- read.xlsx("qualtrics_export_20250213.xlsx", sheet = 1) # QRAW <- read.xlsx("qualtrics_export_20230918.xlsx", sheet = 1)
 	head(QRAW)
 	
 	# filter 
@@ -23,7 +23,8 @@
 	head(QRAW)
 	
 	########### SELECT THE RELEVANT COHORT HERE
-		currentcohort = "Coh:September 2024"
+		table(QRAW$student_cohort)
+		currentcohort = "Coh:February 2025"
 		nrow(QRAW)
 		QRAW <- QRAW[which(QRAW$student_cohort == currentcohort),]
 		nrow(QRAW)
@@ -34,7 +35,7 @@
 	QRAW$SNR <-  as.numeric(QRAW$SNR)
 	
 # import the datafile with supervisor info
-	SUIN <- read.xlsx("sep2024_supervisorinfo.xlsx", sheet = 1)
+	SUIN <- read.xlsx("feb2025_supervisorinfo.xlsx", sheet = 1)
 	head(SUIN)
 	nrow(SUIN)
 	
@@ -49,10 +50,13 @@
 
 	# the student on row 62 is a duplicate in this case, we look up the responseid (R_2iP9BLwYB99a2S5) of this double entry and get rid of it.
 	nrow(QRAW)
-	
-	# Kirsten Veerle, does want to do her thesis this semester
-	QRAW <- QRAW[which(!QRAW$ResponseId == "R_8ISLBKEbMfLhjik"),]
-#	QRAW <- QRAW[which(!QRAW$ResponseId == "R_3gWoHtyh3VRWDdv"),] # 2nd submission suggesting student does an MTP resit?!
+
+	# manual deletes go here
+
+	# Reza Barzegar heeft mogelijk geen nieuwe circle nodig - volgens haar als ze haar resit haalt?
+	# QRAW <- QRAW[!(QRAW$ResponseId == "R_8me08mfUVpjSDKN"),]
+
+
 	nrow(QRAW)	
 	
 ###
@@ -96,9 +100,6 @@
 		names(QRAW)[which(names(QRAW) == "Extended.master?")] <- "extended_master"
 
 		table(QRAW$extended_master)
-		
-		
-		
 		table(QRAW$extended_master)
 		
 		# for my overview
@@ -109,8 +110,6 @@
 			# students that recently got accepted into the extended Master
 			QRAW[which(QRAW$extended_master == "Yes, I applied for the extended master recently."),]
 			
-			Yes, I applied for the extended master recently.
-		
 		# and filter the remaining
 		nrow(QRAW)
 		QRAW <- QRAW[which(!QRAW$extended_master == "Yes, I applied for the extended master recently."),] # these people will 95% sure all be accepted and won't be assigned a thesis circle
@@ -119,12 +118,12 @@
 		# text for Other
 		OTH <- QRAW[which(QRAW$extended_master == "Other (please specify)."),]
 		nrow(OTH)
-		OTH$Extended.master?_4_TEXT
+		OTH$Extended master_4_TEXT
 		OTH$full_name
 		OTH$email
 		
-		# this student came up, see email conversation with Christof, lets assume for now she will join
-		QRAW$extended_master[which(QRAW$ResponseId == "R_2vSersf12bYNsGt")] <- "No, I did NOT apply for the extended master."
+		# this student came up, and mentions that if she pases her MTP she does not need a circle?
+		QRAW$extended_master[which(QRAW$ResponseId == "R_8me08mfUVpjSDKN")] <- "No, I did NOT apply for the extended master."
 		
 		## if any Other, break stuf!
 		if("Other (please specify)." %in% names(table(QRAW$extended_master)))
@@ -155,10 +154,10 @@
 	
 ## Get rid of all the people that where just worried about their MTP resits
 
-	table(SPRF$MTP_Resit)
-	nrow(SPRF)
-	SPRF <- SPRF[which(SPRF$MTP_Resit == "No, I am enrolling to start my Thesis for the first time"),]
-	nrow(SPRF)
+#	table(SPRF$MTP_Resit)
+#	nrow(SPRF)
+#	SPRF <- SPRF[which(SPRF$MTP_Resit == "No, I am enrolling to start my Thesis for the first time"),]
+#	nrow(SPRF)
 	
 # some setting stuff
 
@@ -177,11 +176,11 @@
 			n_students <- totalnrstudents
 			n_supervisors <- totalnrsupervisors
 		
-		# also, if some supervisors are allowed to have more than 3 students, specify this here! Otherwise set all to 4.
+		# also, if some supervisors are (only) allowed to have more or less than 4 students, specify this here! Otherwise set all to 4.
 			n_slots_per_supervisor_vec <- rep(4, length.out = nrow(SUIN))
 			length(n_slots_per_supervisor_vec)
 			
-			n_slots_per_supervisor_vec <- c(3, 4, 4, 4, 4, 3, 4, 4, 0, 0, 0, 0) # manual version, needs to as long as n_supervisors
+			n_slots_per_supervisor_vec <- c(4,4,4,4,0,0) # manual version, needs to as long as n_supervisors
 			length(n_slots_per_supervisor_vec)
 			
 			# some info here on what are (im)polpular supervisors - note: only work after actweights has been generated below (lower values indicated more popular)
@@ -226,7 +225,7 @@
 						
 						CHECK <- rbind(a,b,c,d)
 						colnames(CHECK) <- colnames(actweights)
-						CHECK # OK, so all but Katya occur once, that one was indeed incorrect
+						CHECK # OK, so all but Katya occur at least once, that one was indeed incorrect
 						
 						
 						# if not each column in CHECK contains at least one TRUE, break the script!
@@ -259,15 +258,6 @@
 						}
 					}
 				actweights
-				
-	# OK, so I really don't want Ivar Staps bij Suzanne (method mismatch), dus ik ga dat weight omhoog zetten.
-	
-		# right person?
-			SPRF$full_name[11]
-			colnames(actweights)[1]
-		
-		# yes, so lets set ## I did this different, I just switched his choice 3 and 4 in the qualtrics export file.
-			# actweights[11,1] <- actweights[11,1]*2
 			
 	# and if you are an extended master student currently doing an intership: double the pain!
 		indexvecofexmastu <- which(SPRF$extended_master == "Yes, I applied for the extended master roughly half a year ago and am currently doing an internship.")
@@ -278,8 +268,87 @@
 			# - 2nd choice supervisor with match is preferd over first choice with mismatch
 			# - random supervisor (pain=6) with a method match is prefered over a 4th choice supervisor with a mismatch (pain=7), but not a lot.
 		
-			## OK, so note that we did not yet actually ask students about this yet this year, so I cannot sort them on this yet. They will ofcourse have already self-sorted.
-	
+			# get the student quant qual prefs simplified
+			SPRF$student_quant_qual <- as.character(SPRF$student_quant_qual)
+			table(SPRF$student_quant_qual)
+			SPRF$student_quant_qual[SPRF$student_quant_qual == "I am quite sure that I want to use quantitative methods in my master's thesis."] <- "quantitative"
+			SPRF$student_quant_qual[SPRF$student_quant_qual == "I am quite sure that I want to use qualitative methods in my master's thesis."] <- "qualitative"
+			SPRF$student_quant_qual[SPRF$student_quant_qual == "I am quite sure that I want to use both quantitative and qualitative methods (mixed methods) in my master's thesis or am very open to that option."] <- "mixed"
+			SPRF$student_quant_qual[SPRF$student_quant_qual == "I am indifferent between quantitative and qualitative methodologies or do not have a strong preference."] <- "indifferent"
+			table(SPRF$student_quant_qual)
+			
+			#  and the supervisor one
+			table(SUIN$quant_qual_private)
+
+				# Create the qualquantweights matrix of the same dimensions as actweights
+				
+					# note: chatGPT conversation about this bit of script here: https://chatgpt.com/share/67af05ce-f2dc-8003-8d57-52d94f6c8138
+				
+				qualquantweights <- matrix(0, nrow = n_students, ncol = n_supervisors)
+
+				# Loop over each student and supervisor combination
+				for (i in 1:n_students) {
+				  for (j in 1:n_supervisors) {
+					
+					# Retrieve the student's and supervisor's method preferences
+					student_pref <- SPRF$student_quant_qual[i]
+					supervisor_pref <- SUIN$quant_qual_private[j]
+					
+					# For student "quantitative"
+					if (student_pref == "quantitative" && supervisor_pref == "quantitative") {
+					  qualquantweights[i, j] <- 0
+					}
+					if (student_pref == "quantitative" && supervisor_pref == "indifferent") {
+					  qualquantweights[i, j] <- 0
+					}
+					if (student_pref == "quantitative" && supervisor_pref == "qualitative") {
+					  qualquantweights[i, j] <- 3
+					}
+					
+					# For student "qualitative"
+					if (student_pref == "qualitative" && supervisor_pref == "qualitative") {
+					  qualquantweights[i, j] <- 0
+					}
+					if (student_pref == "qualitative" && supervisor_pref == "indifferent") {
+					  qualquantweights[i, j] <- 0
+					}
+					if (student_pref == "qualitative" && supervisor_pref == "quantitative") {
+					  qualquantweights[i, j] <- 3
+					}
+					
+					# For student "mixed"
+					if (student_pref == "mixed" && supervisor_pref == "indifferent") {
+					  qualquantweights[i, j] <- 0
+					}
+					if (student_pref == "mixed" && supervisor_pref == "quantitative") {
+					  qualquantweights[i, j] <- 3
+					}
+					if (student_pref == "mixed" && supervisor_pref == "qualitative") {
+					  qualquantweights[i, j] <- 3
+					}
+					
+					# For student "indifferent"
+					if (student_pref == "indifferent" && supervisor_pref == "indifferent") {
+					  qualquantweights[i, j] <- 0
+					}
+					if (student_pref == "indifferent" && supervisor_pref == "quantitative") {
+					  qualquantweights[i, j] <- 0
+					}
+					if (student_pref == "indifferent" && supervisor_pref == "qualitative") {
+					  qualquantweights[i, j] <- 0
+					}
+				  }
+				}
+
+				# Inspect the qualquantweights matrix
+				qualquantweights
+
+				# Combine the original actweights with qualquantweights to form the overall cost matrix:
+				overall_weights <- actweights + qualquantweights
+
+				# Inspect the overall weights matrix
+				overall_weights
+
 		# Create the model
 		
 			#  the MIP model is optimizing the assignment of students to supervisors in such a way that:
@@ -287,13 +356,13 @@
 
 				# Each student is assigned to exactly one supervisor.
 				# Each supervisor does not oversee more than a certain number of students (n_slots_per_supervisor_vec).
-				# The total "badness" or unsuitability of all assignments is minimized, based on your actweights matrix.
+				# The total "badness" or unsuitability of all assignments is minimized, based on your overall_weights matrix.
 				# So, by solving this revised MIP model, we will find the most optimal way, under the given constraints, 
-				# to match students with supervisors so as to minimize the overall "badness" of the matches, as represented by the higher values in the actweights matrix.
+				# to match students with supervisors so as to minimize the overall "badness" of the matches, as represented by the higher values in the overall_weights matrix.
 		
 		model <- MIPModel() %>%
 		  add_variable(x[i, j], i = 1:n_students, j = 1:n_supervisors, type = "binary") %>%
-		  set_objective(sum_expr(actweights[i, j] * x[i, j], i = 1:n_students, j = 1:n_supervisors), "min") %>%
+		  set_objective(sum_expr(overall_weights[i, j] * x[i, j], i = 1:n_students, j = 1:n_supervisors), "min") %>%
 		  add_constraint(sum_expr(x[i, j], j = 1:n_supervisors) == 1, i = 1:n_students) %>%
 		  add_constraint(sum_expr(x[i, j], i = 1:n_students) <= n_slots_per_supervisor_vec[j], j = 1:n_supervisors) 
 
@@ -330,7 +399,7 @@
 	# pain and number of supervisors
 
 		# total pain for one solution
-		painmatrix <- assignment_matrix*actweights
+		painmatrix <- assignment_matrix*overall_weights
 		painmatrix
 		sum(painmatrix)
 		
@@ -377,7 +446,7 @@
 		resvec2 <- NULL
 		for(i in 1:totalnrstudents)
 		{
-		resvec2[i] <- actweights[i,which(assignment_matrix[i,] == 1)]
+		resvec2[i] <- overall_weights[i,which(assignment_matrix[i,] == 1)]
 		}
 		resvec2 
 		length(resvec2)
