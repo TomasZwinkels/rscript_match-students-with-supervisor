@@ -425,7 +425,7 @@
 		names(SPRF)
 		
 		# first, lets select the relevant base variables
-        STEX <- subset(SPRF, select=c("full_name","email","SNR","what_master_track","extended_master","student_expl_1schoi","double_degree","selfeval_scores_5","selfeval_scores_6"))
+        STEX <- subset(SPRF, select=c("full_name","email","SNR","what_master_track","extended_master","double_degree","selfeval_scores_5","selfeval_scores_6"))
 		
 		# give the quant and qual skills more informative labels
 		names(STEX)[names(STEX) == "selfeval_scores_5"] <- "selfeval_quant"
@@ -456,25 +456,6 @@
 
 		EXPO <- STEX 
 
-	# OK, and did Katya get some people that are OK with quant 
-
-		KATJ <- EXPO[which(EXPO$my_assigned_supervisor == "B"),]
-		table(KATJ$selfeval_quant) # quite good
-	
-	# and Nola and Suzanne people that are OK with qualitative
-	
-		SUSS <- EXPO[which(EXPO$my_assigned_supervisor == "A"),]
-		nrow(SUSS)
-		table(SUSS$selfeval_qual) # one really NOT very good. 
-		table(SUSS$selfeval_quant) # that student feels more comfortable with quant
-		SUSS
-	
-		NOLA <- EXPO[which(EXPO$my_assigned_supervisor == "F"),]
-		nrow(NOLA)
-		table(NOLA$selfeval_qual) # one really NOT very good. Student Maaike Fukkink should not be with Nola
-		table(NOLA$selfeval_quant) # that student feels more comfortable with quant
-		NOLA
-	
 	# now, lets also automatically assign the 2nd readers
 
 		# first of all, import a file with all the people available to be a 2nd reader
