@@ -14,7 +14,7 @@
 	getwd()
 
 # import the datafile with supervisor preferences
-	QRAW <- read.xlsx("qualtrics_export_20250213.xlsx", sheet = 1) # QRAW <- read.xlsx("qualtrics_export_20230918.xlsx", sheet = 1)
+	QRAW <- read.xlsx("qualtrics_export_20250217.xlsx", sheet = 1) # QRAW <- read.xlsx("qualtrics_export_20230918.xlsx", sheet = 1)
 	head(QRAW)
 	
 	# filter 
@@ -459,9 +459,8 @@
 	# now, lets also automatically assign the 2nd readers
 
 		# first of all, import a file with all the people available to be a 2nd reader
-			SECR <-	read.xlsx("sep2024_2ndreaderoptions.xlsx", sheet = 1)
+			SECR <-	read.xlsx("feb2025_2ndreaderoptions.xlsx", sheet = 1)
 			head(SECR)
-			SECR
 			
 			SECR$letterinsurvey <- as.character(SECR$letterinsurvey)
 
@@ -470,12 +469,21 @@
 			SECR <- SECR[which(!SECR$letterinsurvey %in% names(table(STEX$my_assigned_supervisor))),]
 			nrow(SECR) # different with last nrow should be number of supervisors assigned
 		
+		# order from lowest assigned number of 2nd reader tasks to highest (in a function because we want to do this below again after each assigment)
+		
+			orderon2ndreadertasks <- function(SECRLOCAL)
+				{
+					SECRLOCAL[order(SECRLOCAL$current_2nd_reader_tasks),]
+				}
+			# test
+			orderon2ndreadertasks(SECR)
+		
 		# make a new dataframe, that we can do the random matching in
 			# Create a dataframe with those names as a single variable
-				supervisor_names <- names(table(STEX$my_assigned_supervisor))
-				DFSU <- data.frame(assigned_supervisor = supervisor_names)
-				DFSU$assigned_supervisor <- as.character(DFSU$assigned_supervisor)
-				DFSU
+	#			supervisor_names <- names(table(STEX$my_assigned_supervisor))
+	#			DFSU <- data.frame(assigned_supervisor = supervisor_names)
+	#			DFSU$assigned_supervisor <- as.character(DFSU$assigned_supervisor)
+	#			DFSU
 
 # now, lets merge in some info on the supervisors
 		nrow(EXPO)
@@ -483,9 +491,7 @@
 		head(EXPO)
 		
 		# adding sub columns that are needed for the thesis dossier import
-		
-		## make sure to set this one correctly manually!
-		EXPO$Category <- "Coh:February 2024"
+		EXPO$Category <- currentcohort
 		table(EXPO$Category)
 		
 		## getting the double degree categories all good
@@ -507,43 +513,74 @@
 		# order by EXPO$my_assigned_supervisor
 		EXPO <- EXPO[order(EXPO$my_assigned_supervisor), ]
 		EXPO
+		
+		# here the result file from Melanie can be added!
+		
+		
 	
 # now randomly assign the 2nd reader
 		
-			# lets set the seed using the cohort as the input, so that the random selection is the same when we run the script, but different between cohorts.
-				# Use digest to create a hash and convert it to a number for set.seed (so, first make a hexadecimal, then convert to a numeric value)
+		# lets set the seed using the cohort as the input, so that the random selection is the same when we run the script, but different between cohorts.
+			# Use digest to create a hash and convert it to a number for set.seed (so, first make a hexadecimal, then convert to a numeric value)
 				hashed_value <- strtoi(digest(currentcohort, algo="crc32"),base=16) 
 
-				# Set the seed
-				set.seed(hashed_value+3)
-				
-			# Randomly shuffle the rows of SECR
-				SECR <- SECR[sample(nrow(SECR)),]
-				
-			# And now just select the top 8
-				DFSU$random2ndreader_ANR <- SECR$ANR[1:nrow(DFSU)]
-				DFSU$random2ndreader_last_name <- SECR$last_name[1:nrow(DFSU)]
-				DFSU$random2ndreader_first_name <- SECR$first_name[1:nrow(DFSU)]
-				DFSU$random2ndreader_email <- SECR$email[1:nrow(DFSU)]
+			# Set the seed
+				set.seed(hashed_value)
 			
-			DFSU
-		
-		# and merge the result into EXPO
-		nrow(EXPO)
-			EXPO <- sqldf("SELECT EXPO.*, DFSU.*
-                    FROM EXPO
-                    LEFT JOIN DFSU
-                    ON EXPO.my_assigned_supervisor = DFSU.assigned_supervisor")
-		nrow(EXPO)
-		EXPO
-		
-		# now, remove this assignment for students that are doing a double degree
-		EXPO$random2ndreader_ANR[which(grepl("Yes, I am doing the double-degree",EXPO$double_degree, fixed=TRUE))] <- NA
-		EXPO$random2ndreader_last_name[which(grepl("Yes, I am doing the double-degree",EXPO$double_degree, fixed=TRUE))] <- NA
-		EXPO$random2ndreader_first_name[which(grepl("Yes, I am doing the double-degree",EXPO$double_degree, fixed=TRUE))] <- NA
-		EXPO$random2ndreader_email[which(grepl("Yes, I am doing the double-degree",EXPO$double_degree, fixed=TRUE))] <- NA
-		
-		EXPO
+			# get a vector with all circles that need to be assigned
+				circles_that_still_need_a_2nd_reader <- unique(EXPO$my_assigned_supervisor)
+				
+			# OPTIONAL - also add the last names of the supervisors from HWS here (as 'letters') if we also want them to be assigned a supervisor
+			
+			# Randomly shuffle this vector
+				circles_that_still_need_a_2nd_reader_rand <- circles_that_still_need_a_2nd_reader[sample(length(circles_that_still_need_a_2nd_reader))]
+			
+			# loop through each circle of the random list, and assign the person that currently has the lowest number of 2nd reader tasks, until the list is empty.
+
+				resvec <- vector()
+				for(i in 1:length(circles_that_still_need_a_2nd_reader_rand))
+				{
+					# order the dataframe on the current number of assigned 2nd reader tasks
+					SECR <- orderon2ndreadertasks(SECR)
+					
+					# get the ANR of the person on top
+					resvec[i] <- SECR[1,"ANR"]
+					
+					# increase this person its number of assigned tasks (we count the number of peope in this circle in EXPO
+					SECR$current_2nd_reader_tasks[1] = SECR$current_2nd_reader_tasks[1] + nrow(EXPO[which(EXPO$my_assigned_supervisor == circles_that_still_need_a_2nd_reader_rand[i]),])
+				}
+				resvec
+				
+			# make a little dataframe with the result
+				ASSI <- as.data.frame(cbind(circles_that_still_need_a_2nd_reader_rand,resvec))
+				
+			# get the 2nd reader ANR merged into EXPO, and after that the rest of their info
+			
+				nrow(EXPO)
+				EXPO <- sqldf("SELECT EXPO.*, ASSI.resvec as 'random2ndreader_ANR'
+							FROM EXPO
+							LEFT JOIN ASSI
+							ON EXPO.my_assigned_supervisor = ASSI.circles_that_still_need_a_2nd_reader_rand")
+				nrow(EXPO)
+				EXPO
+			
+			# use this ANR to get the rest of the details of this 2nd reader
+			
+				nrow(EXPO)
+				EXPO <- sqldf("SELECT EXPO.*, SECR.last_name as 'random2ndreader_last_name', SECR.first_name as 'random2ndreader_first_name', SECR.email as 'random2ndreader_email'
+							FROM EXPO
+							LEFT JOIN SECR
+							ON EXPO.random2ndreader_ANR = SECR.ANR")
+				nrow(EXPO)
+				EXPO
+
+			# now, remove this assignment for students that are doing a double degree
+			EXPO$random2ndreader_ANR[which(grepl("Yes, I am doing the double-degree",EXPO$double_degree, fixed=TRUE))] <- NA
+			EXPO$random2ndreader_last_name[which(grepl("Yes, I am doing the double-degree",EXPO$double_degree, fixed=TRUE))] <- NA
+			EXPO$random2ndreader_first_name[which(grepl("Yes, I am doing the double-degree",EXPO$double_degree, fixed=TRUE))] <- NA
+			EXPO$random2ndreader_email[which(grepl("Yes, I am doing the double-degree",EXPO$double_degree, fixed=TRUE))] <- NA
+			
+			EXPO
 	
 # EXPORT THE COMPLETE FILE
 
