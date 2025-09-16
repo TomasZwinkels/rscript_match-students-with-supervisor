@@ -4,17 +4,19 @@
 	library(ompr)
 	library(ompr.roi)
 	library(ROI.plugin.glpk)
-	library(tidyverse)
+#	library(tidyverse)
 	library(sqldf)
 	library(digest)
 
+# source function definitions
+	source("match_functions.R")
 
 # set working directory
-	setwd("C:/Users/zwinkels/Dropbox/Tilburg Teaching/master thesis coordination/rscript_match-students-with-supervisor")
+	setwd("/home/tomas/projects/rscript_match-students-with-supervisor")
 	getwd()
 
 # import the datafile with supervisor preferences
-	QRAW <- read.xlsx("qualtrics_export_20250217.xlsx", sheet = 1) # QRAW <- read.xlsx("qualtrics_export_20230918.xlsx", sheet = 1)
+	QRAW <- read.xlsx("qualtrics_export_20250916.xlsx", sheet = 1) # QRAW <- read.xlsx("qualtrics_export_20230918.xlsx", sheet = 1)
 	head(QRAW)
 	
 	# filter 
@@ -24,7 +26,7 @@
 	
 	########### SELECT THE RELEVANT COHORT HERE
 		table(QRAW$student_cohort)
-		currentcohort = "Coh:February 2025"
+		currentcohort = "Coh:September 2025"
 		nrow(QRAW)
 		QRAW <- QRAW[which(QRAW$student_cohort == currentcohort),]
 		nrow(QRAW)
@@ -62,7 +64,7 @@
 	# QRAW <- QRAW[!(QRAW$ResponseId == "R_8me08mfUVpjSDKN"),]
 
 	# Yana  Elisabeth van den Berg submitted here preferences twice, we will only use the 2nd submission
-	QRAW <- QRAW[!(QRAW$ResponseId == "R_2ZTWzeJkO8IlQRv"),]
+	# QRAW <- QRAW[!(QRAW$ResponseId == "R_2ZTWzeJkO8IlQRv"),]
 
 	nrow(QRAW)	
 	
@@ -70,40 +72,67 @@
 	
 # CHECK: any students that signed up double?
 
-	# checking for duplicates
-		noduplicates_SNR <- function(DF) {
-		  if (length(names(table(duplicated(DF$SNR)))) > 1) {
-			return(FALSE)
-		  } else {
-			return(TRUE)
+	# checking for duplicates - improved version
+		show_duplicates_SNR(QRAW)
+		
+		# Remove rows where SNR is duplicated and 1st preference is empty
+		nrow(QRAW)
+		# Remove rows where SNR has duplicates AND this specific row has empty 1st preference
+		has_duplicate_snr <- QRAW$SNR %in% QRAW$SNR[duplicated(QRAW$SNR) | duplicated(QRAW$SNR, fromLast = TRUE)]
+		empty_first_pref <- is.na(QRAW$stud_supervis_prefer_0_GROUP) | QRAW$stud_supervis_prefer_0_GROUP == ""
+		QRAW <- QRAW[!(has_duplicate_snr & empty_first_pref), ]
+		nrow(QRAW)
+
+		# Check for rows with identical preference sets and keep only the first entry per SNR
+		pref_cols <- c("stud_supervis_prefer_0_GROUP", "stud_supervis_prefer_1_GROUP",
+		              "stud_supervis_prefer_2_GROUP", "stud_supervis_prefer_3_GROUP")
+
+		# Create a preference signature for each row
+		QRAW$pref_signature <- apply(QRAW[, pref_cols], 1, function(row) {
+		  paste(as.character(row), collapse = "|||")
+		})
+
+		# Find duplicate SNRs with identical preference signatures
+		rows_to_remove <- c()
+		duplicate_snrs <- unique(QRAW$SNR[duplicated(QRAW$SNR)])
+
+		for (snr in duplicate_snrs) {
+		  snr_rows <- which(QRAW$SNR == snr)
+		  if (length(snr_rows) > 1) {
+		    # Check if any of these rows have identical preference signatures
+		    signatures <- QRAW$pref_signature[snr_rows]
+		    if (length(unique(signatures)) < length(signatures)) {
+		      # There are duplicate preference signatures for this SNR
+		      for (sig in unique(signatures)) {
+		        matching_rows <- snr_rows[signatures == sig]
+		        if (length(matching_rows) > 1) {
+		          # Keep first, mark rest for removal
+		          rows_to_remove <- c(rows_to_remove, matching_rows[-1])
+		        }
+		      }
+		    }
 		  }
 		}
-		noduplicates_SNR(QRAW)
-		QRAW[which(duplicated(QRAW$SNR)),]# return them if they are there
-		
+
+		if (length(rows_to_remove) > 0) {
+		  cat("Found", length(rows_to_remove), "duplicate submissions with identical preference sets.\n")
+		  QRAW <- QRAW[-rows_to_remove, ]
+		  cat("Removed", length(rows_to_remove), "duplicate rows with identical preferences.\n")
+		} else {
+		  cat("No duplicate submissions with identical preferences found.\n")
+		}
+
+		# Clean up temporary column
+		QRAW$pref_signature <- NULL
+		nrow(QRAW)
+
 		QRAW[which(QRAW$SNR == "2078052"),]# this student submitted here preferences twice, i'll drop the first occurence
 		
 		
 		QRAW$email <- tolower(QRAW$email)
-		noduplicates_email <- function(DF) {
-		  if (length(names(table(duplicated(DF$email)))) > 1) {
-			return(FALSE)
-		  } else {
-			return(TRUE)
-		  }
-		}
-		noduplicates_email(QRAW)
-		QRAW[which(duplicated(QRAW$email)),]# return them if they are there
+		show_duplicates_email(QRAW)
 		
-		noduplicates_full_name <- function(DF) {
-		  if (length(names(table(duplicated(DF$full_name)))) > 1) {
-			return(FALSE)
-		  } else {
-			return(TRUE)
-		  }
-		}
-		noduplicates_full_name(QRAW)
-		QRAW[which(duplicated(QRAW$full_name)),]# return them if they are there
+		show_duplicates_full_name(QRAW)
 
 # get rid of these that have been accepted into the extended master
 	# how many Extended master
@@ -128,7 +157,7 @@
 		# text for Other
 		OTH <- QRAW[which(QRAW$extended_master == "Other (please specify)."),]
 		nrow(OTH)
-		OTH$Extended master_4_TEXT
+		OTH$`Extended master_4_TEXT`
 		OTH$full_name
 		OTH$email
 		
@@ -145,13 +174,6 @@
 # CHECK did all the remaining students sign-up for a circle? - if one or more students did not (and did not do an attempt later where they did)
 # these students NEED TO BE CONTACTED BY EMAIL FIRST BEFORE YOU CONTINUE
 	
-		allstudentssignedup <- function(DF) {
-		  if (length(names(table(DF$stud_supervis_prefer_0_GROUP == "" | is.na(DF$stud_supervis_prefer_0_GROUP)))) > 1) {
-			return(FALSE)
-		  } else {
-			return(TRUE)
-		  }
-		}
 		allstudentssignedup(QRAW)
 		QRAW[which(QRAW$stud_supervis_prefer_0_GROUP == "" | is.na(QRAW$stud_supervis_prefer_0_GROUP)),] # return the problematic cases, if any
 	
@@ -464,10 +486,6 @@
 		
 		# order from lowest assigned number of 2nd reader tasks to highest (in a function because we want to do this below again after each assigment)
 		
-			orderon2ndreadertasks <- function(SECRLOCAL)
-				{
-					SECRLOCAL[order(SECRLOCAL$current_2nd_reader_tasks),]
-				}
 			# test
 			orderon2ndreadertasks(SECR)
 		
