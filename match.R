@@ -8,15 +8,17 @@
 	library(sqldf)
 	library(digest)
 
+# set working directory
+	
+	setwd("/home/tomas/projects/rscript_match-students-with-supervisor")
+#	setwd("C:/Users/zwinkels/OneDrive - Tilburg University/Tilburg Teaching/master thesis coordination/rscript_match-students-with-supervisor/sep 2025")
+	getwd()
+
 # source function definitions
 	source("match_functions.R")
 
-# set working directory
-	setwd("/home/tomas/projects/rscript_match-students-with-supervisor")
-	getwd()
-
 # import the datafile with supervisor preferences
-	QRAW <- read.xlsx("qualtrics_export_20250916.xlsx", sheet = 1) # QRAW <- read.xlsx("qualtrics_export_20230918.xlsx", sheet = 1)
+	QRAW <- read.xlsx("qualtrics_export_20250919.xlsx", sheet = 1) # QRAW <- read.xlsx("qualtrics_export_20230918.xlsx", sheet = 1)
 	head(QRAW)
 	
 	# filter 
@@ -27,6 +29,9 @@
 	########### SELECT THE RELEVANT COHORT HERE
 		table(QRAW$student_cohort)
 		currentcohort = "Coh:September 2025"
+
+	########### CONTROL VARIABLE FOR HWS STUDENTS AND 2ND READER ASSIGNMENT
+		alsorunforHWS = FALSE  # Set to TRUE to add HWS students from a file prepared by HWS and also assign them a second reader
 		nrow(QRAW)
 		QRAW <- QRAW[which(QRAW$student_cohort == currentcohort),]
 		nrow(QRAW)
@@ -37,13 +42,13 @@
 	QRAW$SNR <-  as.numeric(QRAW$SNR)
 	
 # import the datafile with supervisor info
-	SUINRAW <- read.xlsx("feb2025_supervisorinfo.xlsx", sheet = 1)
+	SUINRAW <- read.xlsx("sep2025_supervisorinfo.xlsx", sheet = 1)
 	SUINRAW
 	nrow(SUINRAW)
 	
 	SUIN <- SUINRAW[which(SUINRAW$group == "us"),]
 	
-	head(SUIN)
+	SUIN
 	nrow(SUIN)
 	
 # we need to get rid of students that signed up with HWS as they need to sign up for a circle by email
@@ -55,16 +60,21 @@
 	
 ### this is where manual fixes can be done if there are entries that are messing things up, you can also edit the data on qualtrics and export again
 
-	# the student on row 62 is a duplicate in this case, we look up the responseid (R_2iP9BLwYB99a2S5) of this double entry and get rid of it.
-	nrow(QRAW)
 
-	# manual deletes go here
+	# this response was just Lila testing things
+	QRAW <- QRAW[!(QRAW$ResponseId == "R_8MzeTiOTXJFqzmp"),]
 
-	# Reza Barzegar heeft mogelijk geen nieuwe circle nodig - volgens haar als hij zijn resit haalt? -- Reza heeft besloten aan een nieuwe circle te willen beginnen.
-	# QRAW <- QRAW[!(QRAW$ResponseId == "R_8me08mfUVpjSDKN"),]
+	# student two students submitted their preferences twice, we will only use the 2nd submission
+	QRAW <- QRAW[!(QRAW$ResponseId == "R_8stIGDK5H1Fpnu9"),]
+	QRAW <- QRAW[!(QRAW$ResponseId == "R_8bA8carK546fS4p"),]
 
-	# Yana  Elisabeth van den Berg submitted here preferences twice, we will only use the 2nd submission
-	# QRAW <- QRAW[!(QRAW$ResponseId == "R_2ZTWzeJkO8IlQRv"),]
+	# student Pingen submitted twice, once without preferences and another time with an inorrect SNR (I looked up the correct one in canvas), 
+	# correcting the SNR here, the bits that select out duplicates on SNR below will take care of getting rid of the incomplete submission
+	QRAW$SNR[which(QRAW$ResponseId == "R_2fEi8bWHrGfQAN6")] <- 2148436
+
+	# this student came up, they have actually been accepted into the extended master (I, Tomas checked the email from Christof).
+	names(QRAW)[which(names(QRAW) == "Extended.master?")] <- "extended_master"
+	QRAW$extended_master[which(QRAW$ResponseId == "R_8X5SS0i0508ZmXn")] <- "Yes, I applied for the extended master recently."
 
 	nrow(QRAW)	
 	
@@ -75,8 +85,6 @@
 	# checking for duplicates - improved version
 		show_duplicates_SNR(QRAW)
 		
-		# Remove rows where SNR is duplicated and 1st preference is empty
-		nrow(QRAW)
 		# Remove rows where SNR has duplicates AND this specific row has empty 1st preference
 		has_duplicate_snr <- QRAW$SNR %in% QRAW$SNR[duplicated(QRAW$SNR) | duplicated(QRAW$SNR, fromLast = TRUE)]
 		empty_first_pref <- is.na(QRAW$stud_supervis_prefer_0_GROUP) | QRAW$stud_supervis_prefer_0_GROUP == ""
@@ -126,13 +134,16 @@
 		QRAW$pref_signature <- NULL
 		nrow(QRAW)
 
-		QRAW[which(QRAW$SNR == "2078052"),]# this student submitted here preferences twice, i'll drop the first occurence
+		show_duplicates_SNR(QRAW)
+		QRAW[which(QRAW$SNR == "2078052"),]# this student submitted their preferences twice, we will drop the first occurence above.
+		QRAW[which(QRAW$SNR == "2151067"),]# also this student submitted their preferences twice, we will drop the first occurence above.
 		
-		
+		# check for duplicate emails
 		QRAW$email <- tolower(QRAW$email)
 		show_duplicates_email(QRAW)
-		
-		show_duplicates_full_name(QRAW)
+
+		# this student submitted there SNR incorrectly once! - so will fix that above as well.
+
 
 # get rid of these that have been accepted into the extended master
 	# how many Extended master
@@ -143,7 +154,7 @@
 		
 		# for my overview
 		
-			# student that started the extended master half a year ago
+			# students that started the extended master half a year ago
 			QRAW[which(QRAW$extended_master == "Yes, I applied for the extended master roughly half a year ago and am currently doing an internship."),]
 			
 			# students that recently got accepted into the extended Master
@@ -151,18 +162,20 @@
 			
 		# and filter the remaining
 		nrow(QRAW)
-		QRAW <- QRAW[which(!QRAW$extended_master == "Yes, I applied for the extended master recently."),] # these people will 95% sure all be accepted and won't be assigned a thesis circle
+		QRAW <- QRAW[which(!QRAW$extended_master == "Yes, I applied for the extended master recently."),] # Christof confirmed this student was indeed excepted into the extended master
 		nrow(QRAW)
-		
+
+		# manual search for other two students (they probably did not submit for a circle) -- one of them did, other did not.
+		QRAW[which(grepl("Karam", QRAW$full_name, ignore.case = TRUE)),]
+		QRAW[which(grepl("Vettorazo|Matos", QRAW$full_name, ignore.case = TRUE)),]
+		QRAW[which(grepl("H.Karam@tilburguniversity.edu|A.VettorazzoCalilMatos@tilburguniversity.edu", QRAW$email, ignore.case = TRUE)),]
+
 		# text for Other
 		OTH <- QRAW[which(QRAW$extended_master == "Other (please specify)."),]
 		nrow(OTH)
 		OTH$`Extended master_4_TEXT`
 		OTH$full_name
 		OTH$email
-		
-		# this student came up, they want to just start their thesis again (I, Tomas checked by email).
-		QRAW$extended_master[which(QRAW$ResponseId == "R_8me08mfUVpjSDKN")] <- "No, I did NOT apply for the extended master."
 		
 		## if any Other, break stuf!
 		if("Other (please specify)." %in% names(table(QRAW$extended_master)))
@@ -174,11 +187,11 @@
 # CHECK did all the remaining students sign-up for a circle? - if one or more students did not (and did not do an attempt later where they did)
 # these students NEED TO BE CONTACTED BY EMAIL FIRST BEFORE YOU CONTINUE
 	
-		allstudentssignedup(QRAW)
+	allstudentssignedup(QRAW)
 		QRAW[which(QRAW$stud_supervis_prefer_0_GROUP == "" | is.na(QRAW$stud_supervis_prefer_0_GROUP)),] # return the problematic cases, if any
 	
 	# ONLY if all checks pass, the script can continue
-	if(noduplicates_SNR(QRAW) & noduplicates_email(QRAW) & noduplicates_full_name(QRAW) & allstudentssignedup(QRAW))
+	if(show_duplicates_SNR(QRAW) & show_duplicates_email(QRAW) & show_duplicates_full_name(QRAW) & allstudentssignedup(QRAW))
 	{
 	SPRF <- QRAW
 	}
@@ -196,11 +209,15 @@
 	totalnrstudents <- nrow(SPRF)
 	totalnrstudents
 	
-	totalnrsupervisors <- nrow(SUIN) #6
+	totalnrsupervisors <- nrow(SUIN) 
 	totalnrsupervisors
 	
 	n_slots_per_supervisor <- 4
 	n_slots_per_supervisor
+
+	# could this work?
+	totalnrstudents / totalnrsupervisors
+	(totalnrstudents / totalnrsupervisors) <= n_slots_per_supervisor
 	
 # OK, now for interesting part, how to go about and do this.
 
@@ -212,12 +229,14 @@
 			n_slots_per_supervisor_vec <- rep(4, length.out = nrow(SUIN))
 			length(n_slots_per_supervisor_vec)
 			
-			n_slots_per_supervisor_vec <- c(4,4,4,4,4,0) # manual version, needs to as long as n_supervisors
+			n_slots_per_supervisor_vec <- c(4,4,4,4,3,4,4,4,0,4,4) # manual version, needs to as long as n_supervisors
 			length(n_slots_per_supervisor_vec)
+			
+			
 			
 			# some info here on what are (im)polpular supervisors - note: only work after actweights has been generated below (lower values indicated more popular)
 				# note for next year, is one supervisor keeps on getting only few students, the optimal way to 'force' student onto that supervisor is by giving the relatively impopular supervisors less students in the list above.
-				rbind(n_slots_per_supervisor_vec,LETTERS[1:totalnrsupervisors],unname(colSums(actweights)))
+				# rbind(n_slots_per_supervisor_vec,LETTERS[1:totalnrsupervisors],unname(colSums(actweights)))  # commented out - actweights not yet created
 		
 			# some inspections, do we have enough supervisors?
 				# enough? - should return TRUE
@@ -308,8 +327,10 @@
 			SPRF$student_quant_qual[SPRF$student_quant_qual == "I am quite sure that I want to use both quantitative and qualitative methods (mixed methods) in my master's thesis or am very open to that option."] <- "mixed"
 			SPRF$student_quant_qual[SPRF$student_quant_qual == "I am indifferent between quantitative and qualitative methodologies or do not have a strong preference."] <- "indifferent"
 			table(SPRF$student_quant_qual)
+			sum(table(SPRF$student_quant_qual))
 			
 			#  and the supervisor one
+			table(is.na(SUIN$quant_qual_private))
 			table(SUIN$quant_qual_private)
 
 				# Create the qualquantweights matrix of the same dimensions as actweights
@@ -392,11 +413,11 @@
 				# So, by solving this revised MIP model, we will find the most optimal way, under the given constraints, 
 				# to match students with supervisors so as to minimize the overall "badness" of the matches, as represented by the higher values in the overall_weights matrix.
 		
-		model <- MIPModel() %>%
-		  add_variable(x[i, j], i = 1:n_students, j = 1:n_supervisors, type = "binary") %>%
-		  set_objective(sum_expr(overall_weights[i, j] * x[i, j], i = 1:n_students, j = 1:n_supervisors), "min") %>%
-		  add_constraint(sum_expr(x[i, j], j = 1:n_supervisors) == 1, i = 1:n_students) %>%
-		  add_constraint(sum_expr(x[i, j], i = 1:n_students) <= n_slots_per_supervisor_vec[j], j = 1:n_supervisors) 
+		model <- MIPModel()
+		model <- add_variable(model, x[i, j], i = 1:n_students, j = 1:n_supervisors, type = "binary")
+		model <- set_objective(model, sum_expr(overall_weights[i, j] * x[i, j], i = 1:n_students, j = 1:n_supervisors), "min")
+		model <- add_constraint(model, sum_expr(x[i, j], j = 1:n_supervisors) == 1, i = 1:n_students)
+		model <- add_constraint(model, sum_expr(x[i, j], i = 1:n_students) <= n_slots_per_supervisor_vec[j], j = 1:n_supervisors) 
 
 		# Solve the model
 		result <- solve_model(model, with_ROI(solver = "glpk", verbose = TRUE))
@@ -434,6 +455,9 @@
 		painmatrix <- assignment_matrix*overall_weights
 		painmatrix
 		sum(painmatrix)
+		
+		SPRF[36,]
+
 		
 	# now let's get a dataframe I can export where the unit of analysis is the student and we add the details of their assigned supervisor
 		head(SPRF)
@@ -474,7 +498,7 @@
 	# now, lets also automatically assign the 2nd readers
 
 		# first of all, import a file with all the people available to be a 2nd reader
-			SECR <-	read.xlsx("feb2025_2ndreaderoptions.xlsx", sheet = 1)
+			SECR <-	read.xlsx("sep2025_2ndreaderoptions.xlsx", sheet = 1)
 			head(SECR)
 			
 			SECR$letterinsurvey <- as.character(SECR$letterinsurvey)
@@ -485,9 +509,9 @@
 			nrow(SECR) # different with last nrow should be number of supervisors assigned
 		
 		# order from lowest assigned number of 2nd reader tasks to highest (in a function because we want to do this below again after each assigment)
-		
-			# test
-			orderon2ndreadertasks(SECR)
+
+			# test - simplified version instead of complex function
+			SECR <- SECR[order(SECR$current_2nd_reader_tasks),]
 		
 		# make a new dataframe, that we can do the random matching in
 			# Create a dataframe with those names as a single variable
@@ -513,10 +537,10 @@
 		EXPO$Subcategory[which(EXPO$Subcategory == "Yes, I am doing the double-degree with Bamberg")] <- "double-degree with Bamberg"
 		
 		## and the assigned supervisor and subjects as they occur in thesisdossier
-		EXPO <- sqldf("SELECT EXPO.*, SUIN.letter_in_sep2024surv, SUIN.ANR as 'supervisor_anr', SUIN.last_name as 'supervisor_last_name', SUIN.first_name as 'supervisor_first_name', SUIN.email as 'supervisor_email', SUIN.circle_description as 'Subject'
+		EXPO <- sqldf("SELECT EXPO.*, SUIN.letter_in_sep2025surv, SUIN.ANR as 'supervisor_anr', SUIN.last_name as 'supervisor_last_name', SUIN.first_name as 'supervisor_first_name', SUIN.email as 'supervisor_email', SUIN.circle_description as 'Subject'
 					  FROM EXPO LEFT JOIN SUIN
 					  ON
-					  EXPO.my_assigned_supervisor = SUIN.letter_in_sep2024surv
+					  EXPO.my_assigned_supervisor = SUIN.letter_in_sep2025surv
 					")
 		nrow(EXPO)
 		EXPO
@@ -541,6 +565,8 @@
 			
 			head(EXPO)
 		
+	# Only run HWS student addition and 2nd reader assignment if flag is set
+	if (alsorunforHWS) {
 		# load this file again, clean it up a bit and append it
 		HWSSUP <- read.xlsx("HWS_supervisors20250318.xlsx", sheet = "focused")
 	
@@ -550,17 +576,54 @@
 		HWS_EXPO$what_master_track <- "HWS"
 		HWS_EXPO$double_degree[is.na(HWS_EXPO$double_degree)] <- "No, I am not following the double degree program."
 
+		# Add missing columns to match EXPO structure
+		HWS_EXPO$selfeval_quant <- NA
+		HWS_EXPO$selfeval_qual <- NA
+		HWS_EXPO$how_painfull <- NA
+		HWS_EXPO$Category <- "HWS"
+		HWS_EXPO$Subcategory <- "Degree in Tilburg"
+		HWS_EXPO$letter_in_sep2025surv <- NA
+		HWS_EXPO$supervisor_anr <- NA
+		HWS_EXPO$supervisor_last_name <- NA
+		HWS_EXPO$supervisor_first_name <- NA
+		HWS_EXPO$supervisor_email <- NA
+		HWS_EXPO$Subject <- NA
+
 		HWS_EXPO
-		
+
 		# Convert SNR to character in both data frames
-			EXPO <- EXPO %>% mutate(SNR = as.character(SNR))
-			HWS_EXPO <- HWS_EXPO %>% mutate(SNR = as.character(SNR))
+			EXPO$SNR <- as.character(EXPO$SNR)
+			HWS_EXPO$SNR <- as.character(HWS_EXPO$SNR)
 
 			# Now row-bind them
-			EXPO <- bind_rows(EXPO, HWS_EXPO)
-			
+			EXPO <- rbind(EXPO, HWS_EXPO)
+
 			EXPO
-					
+
+		# do some check sums on the circle sizes for HWS students
+		table(HWSSUP$last_name_of_assigned_supervisor)
+		table(EXPO$supervisor_last_name)
+
+		# Create the two tables
+			tbl1 <- table(HWSSUP$last_name_of_assigned_supervisor)
+			tbl2 <- table(EXPO$supervisor_last_name)
+
+		# Subset tbl2 to only include names that appear in tbl1,
+			# keeping the same order as in tbl1
+			tbl2_subset <- tbl2[names(tbl1)]
+
+		# Optionally, replace any NA (if a name in tbl1 is missing from tbl2) with 0
+			tbl2_subset[is.na(tbl2_subset)] <- 0
+
+		# Combine the tables by rows
+			rbind(tbl1, tbl2_subset)
+
+	} else {
+		# If not adding HWS students, just ensure SNR is character for consistency
+		EXPO$SNR <- as.character(EXPO$SNR)
+		cat("Skipping HWS student addition (alsorunforHWS = FALSE)\n")
+	}
+
 # now randomly assign the 2nd reader
 		
 		# lets set the seed using the cohort as the input, so that the random selection is the same when we run the script, but different between cohorts.
@@ -594,7 +657,8 @@
 				for(i in 1:length(circles_that_still_need_a_2nd_reader_rand))
 				{
 					# order the dataframe on the current number of assigned 2nd reader tasks
-					SECR <- orderon2ndreadertasks(SECR)
+					# test - simplified version instead of complex function
+				SECR <- SECR[order(SECR$current_2nd_reader_tasks),]
 					
 					# get the ANR of the person on top
 					resvec[i] <- SECR[1,"ANR"]
@@ -635,34 +699,17 @@
 			
 			EXPO
 	
-	# merge in more information on the supervisors
+	# merge in more information on the supervisors (note: supervisor details already added from SUIN above)
 				nrow(EXPO)
-				EXPO <- sqldf("SELECT EXPO.*, SUINRAW.last_name as 'supervisor_last_name', SUINRAW.first_name as 'supervisor_first_name', SUINRAW.email as 'supervisor_email'
-							FROM EXPO
-							LEFT JOIN SUINRAW
-							ON EXPO.my_assigned_supervisor = SUINRAW.letter_in_feb2025surv")
+				# Remove this query as supervisor details are already merged from SUIN table above at lines 540-544
+				# The SUINRAW table contains the same supervisor information but with potentially different column names
+				# EXPO <- sqldf("SELECT EXPO.*, SUINRAW.last_name as 'supervisor_last_name', SUINRAW.first_name as 'supervisor_first_name', SUINRAW.email as 'supervisor_email'
+				#			FROM EXPO
+				#			LEFT JOIN SUINRAW
+				#			ON EXPO.my_assigned_supervisor = SUINRAW.letter_in_sep2025surv")
 				nrow(EXPO)
-				EXPO	
-				
-	# do some check sums on the circle sizes
-	
-		table(HWSSUP$last_name_of_assigned_supervisor)
-		table(EXPO$supervisor_last_name)
-		
-		# Create the two tables
-			tbl1 <- table(HWSSUP$last_name_of_assigned_supervisor)
-			tbl2 <- table(EXPO$supervisor_last_name)
+				EXPO
 
-		# Subset tbl2 to only include names that appear in tbl1,
-			# keeping the same order as in tbl1
-			tbl2_subset <- tbl2[names(tbl1)]
-
-		# Optionally, replace any NA (if a name in tbl1 is missing from tbl2) with 0
-			tbl2_subset[is.na(tbl2_subset)] <- 0
-
-		# Combine the tables by rows
-			rbind(tbl1, tbl2_subset)
-	
 # EXPORT THE COMPLETE FILE with details
 
 	# Get the current date and time
@@ -697,15 +744,9 @@
 	file_name <- paste0("more_focussed_suggested_student-to-supervisor_assignments_", time_str, ".xlsx")
 	write.xlsx(EXPO2, file_name)
 
-
-			# PLEASE NOTE: THIS PART ALWAYS NEEDS TO BE RUN MANUALLY 
-			#
-			#	OPTION 1: SELECT DATA FROM ABOVE
-			#		MIRS <-  EXPO
-			#	OPTION 2: SELECT AN EXCEL SHEET IN THE SAME FORMAT THAT WAS MANUALLY EDITED
-			#		MIRS <- read.xlsx("suggested_student-to-supervisor_assignments_versiontobeimportedforexporttoMirsim_v2.xlsx", sheet = 1) 
-			#
-			
+			#	SELECT DATA FROM ABOVE
+					MIRS <-  EXPO
+	
 			# because manual edits are error-prone, two data integity checks, of they fail, we manual BREAK the data
 			
 				# do all the supervisors always have the same ANR
