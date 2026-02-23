@@ -9,26 +9,52 @@
 	library(digest)
 
 # set working directory
-	
+
 	setwd("/home/tomas/projects/rscript_match-students-with-supervisor")
 #	setwd("C:/Users/zwinkels/OneDrive - Tilburg University/Tilburg Teaching/master thesis coordination/rscript_match-students-with-supervisor/sep 2025")
 	getwd()
+
+# Cohort folder configuration - change this for each cohort run
+	cohort_folder <- "runs/FEB2026"  # e.g., "runs/SEP2025", "runs/FEB2026"
 
 # source function definitions
 	source("match_functions.R")
 
 # import the datafile with supervisor preferences
-	QRAW <- read.xlsx("qualtrics_export_20250919.xlsx", sheet = 1) # QRAW <- read.xlsx("qualtrics_export_20230918.xlsx", sheet = 1)
+	QRAW <- read.xlsx(file.path(cohort_folder, "Cleaned_QualtricsExport_Spring26.xlsx"), sheet = 1) # QRAW <- read.xlsx("qualtrics_export_20230918.xlsx", sheet = 1)
 	head(QRAW)
 	
-	# filter 
+	# filter
 	# data line 2 is stupid
 	QRAW <- QRAW[-1,]
 	head(QRAW)
-	
+
+# comparison with raw Qualtrics export
+	QRAW_UNFILT <- read.xlsx(file.path(cohort_folder, "Your Topic and Supervisor Preferences - TiU Sociology Master Thesis Circles_February 16, 2026_13.37.xlsx"), sheet = 1)
+	QRAW_UNFILT <- QRAW_UNFILT[-1,]  # remove Qualtrics header row
+	# Filter by date to get only 2026 submissions
+	QRAW_UNFILT$RecordedDateActual <- as.Date(as.numeric(QRAW_UNFILT$RecordedDate), origin = "1899-12-30")
+	table(format(QRAW_UNFILT$RecordedDateActual, "%Y-%m"))  # show submissions by month
+	QRAW_UNFILT <- QRAW_UNFILT[which(QRAW_UNFILT$RecordedDateActual >= as.Date("2026-01-01")),]
+	table(QRAW_UNFILT$student_cohort)
+
 	########### SELECT THE RELEVANT COHORT HERE
 		table(QRAW$student_cohort)
-		currentcohort = "Coh:September 2025"
+		currentcohort = "Coh:February 2025" # year was not changed correctly by me, woops... this means a  lot more cases as should.
+
+	########### FILTER BY DATE TO GET ONLY RECENT SUBMISSIONS
+		# Convert Excel serial date to actual date and filter for 2026 submissions only
+		QRAW$RecordedDateActual <- as.Date(as.numeric(QRAW$RecordedDate), origin = "1899-12-30")
+		table(format(QRAW$RecordedDateActual, "%Y-%m"))  # show submissions by month
+		cutoff_date <- as.Date("2026-01-01")
+		nrow(QRAW)
+		QRAW <- QRAW[which(QRAW$RecordedDateActual >= cutoff_date),]
+		nrow(QRAW)
+
+# Compare: which students are in raw but not in cleaned file?
+	missing_from_cleaned <- QRAW_UNFILT[which(!QRAW_UNFILT$SNR %in% QRAW$SNR),]
+	cat("Students in raw Qualtrics but NOT in cleaned file:\n")
+	missing_from_cleaned[, c("SNR", "full_name", "email", "student_cohort", "RecordedDateActual")]
 
 	########### CONTROL VARIABLE FOR HWS STUDENTS AND 2ND READER ASSIGNMENT
 		alsorunforHWS = FALSE  # Set to TRUE to add HWS students from a file prepared by HWS and also assign them a second reader
@@ -42,7 +68,7 @@
 	QRAW$SNR <-  as.numeric(QRAW$SNR)
 	
 # import the datafile with supervisor info
-	SUINRAW <- read.xlsx("sep2025_supervisorinfo.xlsx", sheet = 1)
+	SUINRAW <- read.xlsx(file.path(cohort_folder, "feb2026_supervisorinfo.xlsx"), sheet = 1)
 	SUINRAW
 	nrow(SUINRAW)
 	
@@ -60,25 +86,10 @@
 	
 ### this is where manual fixes can be done if there are entries that are messing things up, you can also edit the data on qualtrics and export again
 
-
-	# this response was just Lila testing things
-	QRAW <- QRAW[!(QRAW$ResponseId == "R_8MzeTiOTXJFqzmp"),]
-
-	# student two students submitted their preferences twice, we will only use the 2nd submission
-	QRAW <- QRAW[!(QRAW$ResponseId == "R_8stIGDK5H1Fpnu9"),]
-	QRAW <- QRAW[!(QRAW$ResponseId == "R_8bA8carK546fS4p"),]
-
-	# student Pingen submitted twice, once without preferences and another time with an inorrect SNR (I looked up the correct one in canvas), 
-	# correcting the SNR here, the bits that select out duplicates on SNR below will take care of getting rid of the incomplete submission
-	QRAW$SNR[which(QRAW$ResponseId == "R_2fEi8bWHrGfQAN6")] <- 2148436
-
-	# this student came up, they have actually been accepted into the extended master (I, Tomas checked the email from Christof).
-	names(QRAW)[which(names(QRAW) == "Extended.master?")] <- "extended_master"
-	QRAW$extended_master[which(QRAW$ResponseId == "R_8X5SS0i0508ZmXn")] <- "Yes, I applied for the extended master recently."
-
-	nrow(QRAW)	
-	
-###
+	# student two students submitted their preferences twice, we will only use the 2nd (or the complete) submission
+	nrow(QRAW)
+	 QRAW <- QRAW[!(QRAW$ResponseId == "R_2laRYE92GsJEwux"),]
+	nrow(QRAW)
 	
 # CHECK: any students that signed up double?
 
@@ -135,8 +146,6 @@
 		nrow(QRAW)
 
 		show_duplicates_SNR(QRAW)
-		QRAW[which(QRAW$SNR == "2078052"),]# this student submitted their preferences twice, we will drop the first occurence above.
-		QRAW[which(QRAW$SNR == "2151067"),]# also this student submitted their preferences twice, we will drop the first occurence above.
 		
 		# check for duplicate emails
 		QRAW$email <- tolower(QRAW$email)
@@ -229,10 +238,8 @@
 			n_slots_per_supervisor_vec <- rep(4, length.out = nrow(SUIN))
 			length(n_slots_per_supervisor_vec)
 			
-			n_slots_per_supervisor_vec <- c(4,4,4,4,3,4,4,4,0,4,4) # manual version, needs to as long as n_supervisors
+			n_slots_per_supervisor_vec <- c(4,4,4,0,0,0) # manual version, needs to as long as n_supervisors # Ruud Woutera and Bram Peper are backup supervisors, so I've set them to zero. Ruud Luijx is also not a popular option - not the first choice for anybody, so I'm also setting him to zero. 
 			length(n_slots_per_supervisor_vec)
-			
-			
 			
 			# some info here on what are (im)polpular supervisors - note: only work after actweights has been generated below (lower values indicated more popular)
 				# note for next year, is one supervisor keeps on getting only few students, the optimal way to 'force' student onto that supervisor is by giving the relatively impopular supervisors less students in the list above.
@@ -264,6 +271,12 @@
 				colnames(actweights) <- c(SUIN$circle_description)
 				
 				# and lets make a dataframe with just the four columns that contain the given student preferences as text from SPRF
+				# First, clean up the preference text by removing conditional enrollment text
+				SPRF$stud_supervis_prefer_0_GROUP <- gsub(" \\(Only available in case of high student enrollment\\)", "", SPRF$stud_supervis_prefer_0_GROUP)
+				SPRF$stud_supervis_prefer_1_GROUP <- gsub(" \\(Only available in case of high student enrollment\\)", "", SPRF$stud_supervis_prefer_1_GROUP)
+				SPRF$stud_supervis_prefer_2_GROUP <- gsub(" \\(Only available in case of high student enrollment\\)", "", SPRF$stud_supervis_prefer_2_GROUP)
+				SPRF$stud_supervis_prefer_3_GROUP <- gsub(" \\(Only available in case of high student enrollment\\)", "", SPRF$stud_supervis_prefer_3_GROUP)
+
 				PREF <- cbind(SPRF$stud_supervis_prefer_0_GROUP,SPRF$stud_supervis_prefer_1_GROUP,SPRF$stud_supervis_prefer_2_GROUP,SPRF$stud_supervis_prefer_3_GROUP)
 				head(PREF)
 			
@@ -277,8 +290,27 @@
 						CHECK <- rbind(a,b,c,d)
 						colnames(CHECK) <- colnames(actweights)
 						CHECK # OK, so all but Katya occur at least once, that one was indeed incorrect
-						
-						
+
+						# Show how many students picked each supervisor as 1st, 2nd, 3rd, 4th choice
+						cat("\nPreference counts per supervisor:\n")
+						pref_counts <- data.frame(
+							supervisor = colnames(actweights),
+							first_choice = sapply(colnames(actweights), function(x) sum(PREF[,1] == x, na.rm = TRUE)),
+							second_choice = sapply(colnames(actweights), function(x) sum(PREF[,2] == x, na.rm = TRUE)),
+							third_choice = sapply(colnames(actweights), function(x) sum(PREF[,3] == x, na.rm = TRUE)),
+							fourth_choice = sapply(colnames(actweights), function(x) sum(PREF[,4] == x, na.rm = TRUE))
+						)
+						print(pref_counts)
+
+						# Diagnostic: show mismatches between supervisor file and survey responses
+						mismatched_supervisors <- colnames(actweights)[!apply(CHECK, 2, any)]
+						if(length(mismatched_supervisors) > 0) {
+							cat("Supervisors not found in any preference column:\n")
+							print(mismatched_supervisors)
+							cat("\nActual values in 1st preference column:\n")
+							print(names(table(PREF[,1])))
+						}
+
 						# if not each column in CHECK contains at least one TRUE, break the script!
 						if (!all(apply(CHECK, 2, any)))
 						{
@@ -453,9 +485,17 @@
 
 		# total pain for one solution
 		painmatrix <- assignment_matrix*overall_weights
+		rownames(painmatrix) <- SPRF$full_name
 		painmatrix
 		sum(painmatrix)
-		
+
+		# Breakdown: show pain score per student
+		cat("\nPain score per student:\n")
+		pain_per_student <- apply(painmatrix, 1, sum)
+		names(pain_per_student) <- 1:length(pain_per_student)
+		print(pain_per_student)
+		cat("\nTotal pain:", sum(pain_per_student), "\n")
+
 		SPRF[36,]
 
 		
@@ -493,12 +533,15 @@
 		STEX$how_painfull <- resvec2
 		table(STEX$how_painfull) ## OKI, there are 4 students that did not get any of their first choices.. what would happen if we add Bram. -- if we add Bram - and tweak the numbers per supervisor a bit, we get 
 
-		EXPO <- STEX 
+		EXPO <- STEX
+
+	########### CONTROL VARIABLE FOR 2ND READER ASSIGNMENT
+		assign2ndReaders <- FALSE  # Set to TRUE when you have the 2nd reader options file ready
 
 	# now, lets also automatically assign the 2nd readers
-
+	if (assign2ndReaders) {
 		# first of all, import a file with all the people available to be a 2nd reader
-			SECR <-	read.xlsx("sep2025_2ndreaderoptions.xlsx", sheet = 1)
+			SECR <-	read.xlsx(file.path(cohort_folder, "feb2026_2ndreaderoptions.xlsx"), sheet = 1)
 			head(SECR)
 			
 			SECR$letterinsurvey <- as.character(SECR$letterinsurvey)
@@ -519,8 +562,9 @@
 	#			DFSU <- data.frame(assigned_supervisor = supervisor_names)
 	#			DFSU$assigned_supervisor <- as.character(DFSU$assigned_supervisor)
 	#			DFSU
+	}
 
-# now, lets merge in some info on the supervisors
+# now, lets merge in some info on the supervisors (this runs regardless of assign2ndReaders)
 		nrow(EXPO)
 		names(EXPO)
 		head(EXPO)
@@ -537,10 +581,10 @@
 		EXPO$Subcategory[which(EXPO$Subcategory == "Yes, I am doing the double-degree with Bamberg")] <- "double-degree with Bamberg"
 		
 		## and the assigned supervisor and subjects as they occur in thesisdossier
-		EXPO <- sqldf("SELECT EXPO.*, SUIN.letter_in_sep2025surv, SUIN.ANR as 'supervisor_anr', SUIN.last_name as 'supervisor_last_name', SUIN.first_name as 'supervisor_first_name', SUIN.email as 'supervisor_email', SUIN.circle_description as 'Subject'
+		EXPO <- sqldf("SELECT EXPO.*, SUIN.letter_in_feb2026surv, SUIN.ANR as 'supervisor_anr', SUIN.last_name as 'supervisor_last_name', SUIN.first_name as 'supervisor_first_name', SUIN.email as 'supervisor_email', SUIN.circle_description as 'Subject'
 					  FROM EXPO LEFT JOIN SUIN
 					  ON
-					  EXPO.my_assigned_supervisor = SUIN.letter_in_sep2025surv
+					  EXPO.my_assigned_supervisor = SUIN.letter_in_feb2026surv
 					")
 		nrow(EXPO)
 		EXPO
@@ -568,7 +612,7 @@
 	# Only run HWS student addition and 2nd reader assignment if flag is set
 	if (alsorunforHWS) {
 		# load this file again, clean it up a bit and append it
-		HWSSUP <- read.xlsx("HWS_supervisors20250318.xlsx", sheet = "focused")
+		HWSSUP <- read.xlsx(file.path(cohort_folder, "HWS_supervisors.xlsx"), sheet = "focused")
 	
 		HWS_EXPO <- HWSSUP[,c("full_name", "email", "SNR", "extended_master", "double_degree","last_name_of_assigned_supervisor")]
 		names(HWS_EXPO)[names(HWS_EXPO) == "last_name_of_assigned_supervisor"] <- "my_assigned_supervisor"
@@ -582,7 +626,7 @@
 		HWS_EXPO$how_painfull <- NA
 		HWS_EXPO$Category <- "HWS"
 		HWS_EXPO$Subcategory <- "Degree in Tilburg"
-		HWS_EXPO$letter_in_sep2025surv <- NA
+		HWS_EXPO$letter_in_feb2026surv <- NA
 		HWS_EXPO$supervisor_anr <- NA
 		HWS_EXPO$supervisor_last_name <- NA
 		HWS_EXPO$supervisor_first_name <- NA
@@ -624,8 +668,8 @@
 		cat("Skipping HWS student addition (alsorunforHWS = FALSE)\n")
 	}
 
-# now randomly assign the 2nd reader
-		
+# now randomly assign the 2nd reader (only if assign2ndReaders is TRUE)
+	if (assign2ndReaders) {
 		# lets set the seed using the cohort as the input, so that the random selection is the same when we run the script, but different between cohorts.
 			# Use digest to create a hash and convert it to a number for set.seed (so, first make a hexadecimal, then convert to a numeric value)
 				hashed_value <- strtoi(digest(currentcohort, algo="crc32"),base=16) 
@@ -696,9 +740,18 @@
 			EXPO$random2ndreader_last_name[which(grepl("Yes, I am doing the double-degree",EXPO$double_degree, fixed=TRUE))] <- "Double Degree student, assign manually!"
 			EXPO$random2ndreader_first_name[which(grepl("Yes, I am doing the double-degree",EXPO$double_degree, fixed=TRUE))] <- NA
 			EXPO$random2ndreader_email[which(grepl("Yes, I am doing the double-degree",EXPO$double_degree, fixed=TRUE))] <- NA
-			
+
 			EXPO
-	
+
+	} else {
+		# Skipping 2nd reader assignment - add placeholder columns so exports still work
+		cat("Skipping 2nd reader assignment (assign2ndReaders = FALSE)\n")
+		EXPO$random2ndreader_ANR <- NA
+		EXPO$random2ndreader_last_name <- "Not assigned yet"
+		EXPO$random2ndreader_first_name <- NA
+		EXPO$random2ndreader_email <- NA
+	}
+
 	# merge in more information on the supervisors (note: supervisor details already added from SUIN above)
 				nrow(EXPO)
 				# Remove this query as supervisor details are already merged from SUIN table above at lines 540-544
@@ -706,7 +759,7 @@
 				# EXPO <- sqldf("SELECT EXPO.*, SUINRAW.last_name as 'supervisor_last_name', SUINRAW.first_name as 'supervisor_first_name', SUINRAW.email as 'supervisor_email'
 				#			FROM EXPO
 				#			LEFT JOIN SUINRAW
-				#			ON EXPO.my_assigned_supervisor = SUINRAW.letter_in_sep2025surv")
+				#			ON EXPO.my_assigned_supervisor = SUINRAW.letter_in_feb2026surv")
 				nrow(EXPO)
 				EXPO
 
@@ -719,7 +772,7 @@
 	time_str <- format(current_time, "%Y%m%d_%H%M%S")
 
 	# Create a file name with the timestamp
-	file_name <- paste0("details_suggested_student-to-supervisor_assignments_", time_str, ".xlsx")
+	file_name <- file.path(cohort_folder, paste0("details_suggested_student-to-supervisor_assignments_", time_str, ".xlsx"))
 	write.xlsx(EXPO, file_name)
 				
 
@@ -741,9 +794,11 @@
 	EXPO2 <- EXPO[,c("SNR","track_code","full_name","email","supervisor_last_name","supervisor_first_name","supervisor_email","random2ndreader_last_name","random2ndreader_first_name","random2ndreader_email"),]
 
 	# Create a file name with the timestamp
-	file_name <- paste0("more_focussed_suggested_student-to-supervisor_assignments_", time_str, ".xlsx")
+	file_name <- file.path(cohort_folder, paste0("more_focussed_suggested_student-to-supervisor_assignments_", time_str, ".xlsx"))
 	write.xlsx(EXPO2, file_name)
 
+
+# Some legacy code here when the data needed to be delivered into a specific format to be imported for Thesis Dossier. 
 			#	SELECT DATA FROM ABOVE
 					MIRS <-  EXPO
 	
@@ -794,16 +849,16 @@
 					EXPO_PPSD <- sqldf(paste0("SELECT MIRS.SNR, MIRS.supervisor_anr as 'ANR_supervisor',MIRS.random2ndreader_ANR as 'ANR_second-assessor', MIRS.Category, MIRS.Subcategory, MIRS.Subject FROM MIRS WHERE coursecodes = '",PPSD_coursecode,"'"))
 					nrow(EXPO_PPSD)
 					EXPO_PPSD
-					
-					file_name2 <- paste0(PPSD_coursecode,"_", time_str, ".xlsx")
+
+					file_name2 <- file.path(cohort_folder, paste0(PPSD_coursecode,"_", time_str, ".xlsx"))
 					write.xlsx(EXPO_PPSD, file_name2)
 
 				# export PPSinCP
 					EXPO_PPSinCP <- sqldf(paste0("SELECT MIRS.SNR, MIRS.supervisor_anr as 'ANR_supervisor', MIRS.random2ndreader_ANR as 'ANR_second-assessor', MIRS.Category, MIRS.Subcategory, MIRS.Subject FROM MIRS WHERE coursecodes = '",PPSinCP_coursecode,"'"))
 					nrow(EXPO_PPSinCP)
 					EXPO_PPSinCP
-					
-					file_name2 <- paste0(PPSinCP_coursecode,"_", time_str, ".xlsx")
+
+					file_name2 <- file.path(cohort_folder, paste0(PPSinCP_coursecode,"_", time_str, ".xlsx"))
 					write.xlsx(EXPO_PPSinCP, file_name2)
 					
 					

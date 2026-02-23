@@ -1,6 +1,6 @@
 # Student-Supervisor Assignment System
 
-An R script for optimally matching master's thesis students with supervisors using mixed-integer programming (MIP).
+An R script for optimally matching master's thesis students with supervisors using mixed-integer programming (MIP) and also assigns 2nd readers at random, while talking into account how many students a supervisor already has.
 
 ## Overview
 
@@ -8,18 +8,17 @@ This system automates the assignment of master's thesis students to supervisors 
 - Student preferences for supervisors/research circles
 - Student research methodology preferences (quantitative/qualitative/mixed)
 - Supervisor capacity constraints
-- Automatic second reader assignment
 
 The script uses optimization to minimize overall "pain" (dissatisfaction) while respecting all constraints.
 
 ## Key Features
 
+- **Data validation**: Multiple integrity checks to prevent assignment errors
 - **Preference-based matching**: Students rank their top 4 supervisor choices
 - **Methodology matching**: Considers alignment between student and supervisor research methods
 - **Capacity constraints**: Respects maximum students per supervisor
-- **Extended master handling**: Applies penalties for extended master students
-- **Second reader assignment**: Automatically assigns second readers with load balancing
-- **Data validation**: Multiple integrity checks to prevent assignment errors
+- **Extended master handling**: Makes sure that extended master students are almost always assigned their 1st preference (by assigning a higher pentalty when they are not.)
+- **Second reader assignment**: Automatically and randomly assigns second readers, balancing this with the already existing number of students.
 - **Export formats**: Generates files for various administrative systems
 
 ## Dependencies
@@ -29,22 +28,48 @@ install.packages(c("openxlsx", "ompr", "ompr.roi", "ROI.plugin.glpk",
                    "tidyverse", "sqldf", "digest"))
 ```
 
+## Folder Structure
+
+Each cohort run is stored in its own subfolder under `runs/`:
+
+```
+rscript_match-students-with-supervisor/
+├── match.R                 # Main script
+├── match_functions.R       # Helper functions
+├── README.md
+└── runs/
+    ├── SEP2025/            # September 2025 cohort
+    │   ├── qualtrics_export_20250919.xlsx
+    │   ├── sep2025_supervisorinfo.xlsx
+    │   ├── sep2025_2ndreaderoptions.xlsx
+    │   ├── HWS_supervisors20250318.xlsx
+    │   └── [output files...]
+    └── FEB2026/            # February 2026 cohort (example)
+        ├── qualtrics_export_YYYYMMDD.xlsx
+        └── ...
+```
+
+To set up a new cohort:
+1. Create a new folder under `runs/` (e.g., `runs/FEB2026/`)
+2. Place input files in that folder
+3. Update `cohort_folder` in `match.R` (around line 17)
+
 ## Input Files Required
 
 1. `qualtrics_export_YYYYMMDD.xlsx` - Student preference survey data
-2. `feb2025_supervisorinfo.xlsx` - Supervisor information and capacities
-3. `feb2025_2ndreaderoptions.xlsx` - Available second readers
-4. `HWS_supervisors20250318.xlsx` - HWS track assignments (optional)
+2. `COHORT_supervisorinfo.xlsx` - Supervisor information and capacities
+3. `COHORT_2ndreaderoptions.xlsx` - Available second readers
+4. `HWS_supervisorsYYYYMMDD.xlsx` - HWS track assignments (optional)
 
 ## Data Structure
 
-### Student Preferences
+### Student Information / Preferences
 - Students rank up to 4 supervisors/research circles
 - Methodology preference (quantitative/qualitative/mixed/indifferent)
 - Extended master status
 - Double degree program participation
 
-### Supervisor Information
+### Supervisor Information / Preferences
 - Available research circles
 - Maximum student capacity (typically 4)
 - Methodology specialization
@@ -66,13 +91,16 @@ The script uses a Mixed-Integer Programming model that:
 
 3. **Assigns second readers** using load balancing with randomization
 
-## Usage
+## When using for a new cohort, the following needs to happen.
 
-1. **Set cohort**: Update `currentcohort` variable (line 27)
-2. **Configure capacities**: Modify `n_slots_per_supervisor_vec` (line 193)
-3. **Run data validation**: Script performs multiple integrity checks
-4. **Execute optimization**: MIP solver finds optimal assignment
-5. **Generate exports**: Multiple output formats for different systems
+1. **Create cohort folder**: Create a new folder under `runs/` (e.g., `runs/FEB2026/`) and place input files there
+2. **Set cohort folder**: Update `cohort_folder` variable (around line 17) to point to the new folder
+3. **Set cohort**: Update `currentcohort` variable (around line 34)
+4. **Update input filenames**: Update the input file names in the script to match your new files
+5. **Configure capacities**: Modify `n_slots_per_supervisor_vec` (around line 235)
+6. **Run data validation**: Performs the multiple integrity checks in the script, deal with the cases that pop up.
+7. **Execute optimization**: Use the MIP solver, potentially play around with number of slots per supervisor to see if we can drop a supervisor as available without making to many people unhappy.
+8. **Generate exports**: Generate the output formats and get them into the other systems.
 
 ## Output Files
 
@@ -80,7 +108,7 @@ The script uses a Mixed-Integer Programming model that:
 - `more_focussed_suggested_student-to-supervisor_assignments_TIMESTAMP.xlsx` - Administrative overview
 - Course-specific files for thesis management system import
 
-## Data Validation
+## Details on Data Validation
 
 The script includes checks for:
 - Duplicate student entries (SNR, email, name)
@@ -91,10 +119,15 @@ The script includes checks for:
 
 ## Configuration Points
 
-### Manual Adjustments (lines 54-68)
+### Cohort Folder (line 17)
+```r
+cohort_folder <- "runs/SEP2025"  # e.g., "runs/SEP2025", "runs/FEB2026"
+```
+
+### Manual Adjustments (lines 63-78)
 Remove duplicate or problematic entries before processing
 
-### Cohort Selection (line 27)
+### Cohort Selection (line 34)
 ```r
 currentcohort = "Coh:February 2025"
 ```

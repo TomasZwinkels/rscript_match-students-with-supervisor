@@ -20,7 +20,7 @@ show_duplicates_email <- function(DF) {
   dup_emails <- DF$email[duplicated(DF$email) | duplicated(DF$email, fromLast = TRUE)]
   if (length(dup_emails) > 0) {
 	cat("DUPLICATE emails found:\n")
-	result <- DF[DF$email %in% dup_emails, c("SNR", "full_name", "email", "StartDate",
+	result <- DF[DF$email %in% dup_emails, c("ResponseId", "SNR", "full_name", "email", "StartDate",
 	                                         "stud_supervis_prefer_0_GROUP", "stud_supervis_prefer_1_GROUP",
 	                                         "stud_supervis_prefer_2_GROUP", "stud_supervis_prefer_3_GROUP")]
 	print(result[order(result$email),])
@@ -35,7 +35,7 @@ show_duplicates_full_name <- function(DF) {
   dup_names <- DF$full_name[duplicated(DF$full_name) | duplicated(DF$full_name, fromLast = TRUE)]
   if (length(dup_names) > 0) {
 	cat("DUPLICATE full names found:\n")
-	result <- DF[DF$full_name %in% dup_names, c("SNR", "full_name", "email", "StartDate",
+	result <- DF[DF$full_name %in% dup_names, c("ResponseId", "SNR", "full_name", "email", "StartDate",
 	                                            "stud_supervis_prefer_0_GROUP", "stud_supervis_prefer_1_GROUP",
 	                                            "stud_supervis_prefer_2_GROUP", "stud_supervis_prefer_3_GROUP")]
 	print(result[order(result$full_name),])
